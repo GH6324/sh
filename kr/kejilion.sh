@@ -1618,7 +1618,7 @@ cf_purge_cache() {
 	# Zone_ids를 배열로 변환합니다
 	ZONE_IDS=($ZONE_IDS)
   else
-	# 캐시 청소 여부를 사용자에게 프롬프트하십시오
+	# 캐시 청소 여부를 사용자에게 프롬프트합니다
 	read -e -p "CloudFlare의 캐시를 청소해야합니까? (Y/N) :" answer
 	if [[ "$answer" == "y" ]]; then
 	  echo "CF 정보가 저장됩니다$CONFIG_FILE, 나중에 CF 정보를 수정할 수 있습니다"
@@ -3857,7 +3857,7 @@ frps_panel() {
 
 			8)
 				send_stats "IP 액세스를 차단하십시오"
-				echo "반세기 도메인 이름에 액세스 한 경우이 기능을 사용하여 IP+ 포트 액세스를 차단하십시오."
+				echo "반세기 도메인 이름에 액세스 한 경우이 기능을 사용하여 IP+ 포트 액세스를 차단할 수 있습니다."
 				read -e -p "차단 해야하는 포트를 입력하십시오." frps_port
 				block_host_port "$frps_port" "$ipv4_address"
 				;;
@@ -7816,7 +7816,7 @@ linux_ldnmp() {
 			  ;;
 		  2)
 			  echo "데이터베이스 백업은 .gz-end 압축 패키지 여야합니다. Pagoda/1Panel의 백업 데이터 가져 오기를 지원하려면/홈/디렉토리에 넣으십시오."
-			  read -e -p "다운로드 링크를 입력하여 백업 데이터를 원격으로 다운로드 할 수도 있습니다. Enter가 직접 누르면 원격 다운로드를 건너 뜁니다." url_download_db
+			  read -e -p "다운로드 링크를 입력하여 백업 데이터를 원격으로 다운로드 할 수도 있습니다. 원격 다운로드를 건너 뛰려면 Enter를 직접 누르십시오." url_download_db
 
 			  cd /home/
 			  if [ -n "$url_download_db" ]; then
@@ -11470,7 +11470,7 @@ EOF
 
 						  ;;
 					  2)
-						  read -e -p "삭제 해야하는 콘텐츠를 구문 분석하기위한 키워드를 입력하십시오." delhost
+						  read -e -p "삭제 해야하는 구문 분석 컨텐츠의 키워드를 입력하십시오." delhost
 						  sed -i "/$delhost/d" /etc/hosts
 						  send_stats "로컬 호스트 구문 분석 및 삭제"
 						  ;;
@@ -12121,7 +12121,7 @@ linux_file() {
 
 				# -r 옵션을 사용하여 디렉토리를 재귀 적으로 복사하십시오
 				cp -r "$src_path" "$dest_path" && echo "파일 또는 디렉토리가 복사되었습니다$dest_path" || echo "파일이나 디렉토리를 복사하지 못했습니다"
-				send_stats "파일 또는 디렉토리를 복사하십시오"
+				send_stats "파일 또는 디렉토리를 복사합니다"
 				;;
 
 
