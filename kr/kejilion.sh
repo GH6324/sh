@@ -294,7 +294,7 @@ status() {
 	if [ $? -eq 0 ]; then
 		echo "$1서비스 상태가 표시됩니다."
 	else
-		echo "오류 : 표시 할 수 없습니다$1서비스 상태."
+		echo "错误：无法显示 $1서비스 상태."
 	fi
 }
 
@@ -894,49 +894,49 @@ close_port() {
 allow_ip() {
 	local ips=($@)  # 将传入的参数转换为数组
 	if [ ${#ips[@]} -eq 0 ]; then
-		echo "하나 이상의 IP 주소 또는 IP 세그먼트를 제공하십시오."
+		echo "请提供至少一个IP地址或IP段"
 		return 1
 	fi
 
 	install iptables
 
 	for ip in "${ips[@]}"; do
-		# 기존 차단 규칙을 삭제하십시오
+		# 删除已存在的阻止规则
 		iptables -D INPUT -s $ip -j DROP 2>/dev/null
 
-		# 허용 규칙을 추가하십시오
+		# 添加允许规则
 		if ! iptables -C INPUT -s $ip -j ACCEPT 2>/dev/null; then
 			iptables -I INPUT 1 -s $ip -j ACCEPT
-			echo "IP 출시$ip"
+			echo "已放行IP $ip"
 		fi
 	done
 
 	save_iptables_rules
-	send_stats "IP 출시"
+	send_stats "已放行IP"
 }
 
 block_ip() {
 	local ips=($@)  # 将传入的参数转换为数组
 	if [ ${#ips[@]} -eq 0 ]; then
-		echo "하나 이상의 IP 주소 또는 IP 세그먼트를 제공하십시오."
+		echo "请提供至少一个IP地址或IP段"
 		return 1
 	fi
 
 	install iptables
 
 	for ip in "${ips[@]}"; do
-		# 기존 허용 규칙을 삭제합니다
+		# 删除已存在的允许规则
 		iptables -D INPUT -s $ip -j ACCEPT 2>/dev/null
 
-		# 차단 규칙을 추가하십시오
+		# 添加阻止规则
 		if ! iptables -C INPUT -s $ip -j DROP 2>/dev/null; then
 			iptables -I INPUT 1 -s $ip -j DROP
-			echo "IP 차단$ip"
+			echo "已阻止IP $ip"
 		fi
 	done
 
 	save_iptables_rules
-	send_stats "IP 차단"
+	send_stats "已阻止IP"
 }
 
 
@@ -4884,7 +4884,7 @@ elrepo_install() {
 		linux_Settings
 	fi
 	# 감지 된 운영 체제 정보를 인쇄합니다
-	echo "운영 체제 감지 :$os_name $os_version"
+	echo "감지 된 운영 체제 :$os_name $os_version"
 	# 시스템 버전에 따라 해당 Elrepo 창고 구성을 설치하십시오.
 	if [[ "$os_version" == 8 ]]; then
 		echo "Elrepo 저장소 구성 (버전 8)을 설치하십시오 ..."
@@ -7585,7 +7585,7 @@ linux_ldnmp() {
 	  echo "Redis Port : 6379"
 	  echo ""
 	  echo "웹 사이트 URL : https : //$yuming"
-	  echo "백그라운드 로그인 경로 : /admin"
+	  echo "백엔드 로그인 경로 : /admin"
 	  echo "------------------------"
 	  echo "사용자 이름 : 관리자"
 	  echo "비밀번호 : 관리자"
@@ -7816,7 +7816,7 @@ linux_ldnmp() {
 			  ;;
 		  2)
 			  echo "데이터베이스 백업은 .gz-end 압축 패키지 여야합니다. Pagoda/1Panel의 백업 데이터 가져 오기를 지원하려면/홈/디렉토리에 넣으십시오."
-			  read -e -p "다운로드 링크를 입력하여 백업 데이터를 원격으로 다운로드 할 수도 있습니다. 원격 다운로드를 건너 뛰려면 Enter를 직접 누르십시오." url_download_db
+			  read -e -p "다운로드 링크를 입력하여 백업 데이터를 원격으로 다운로드 할 수도 있습니다. Enter가 직접 누르면 원격 다운로드를 건너 뜁니다." url_download_db
 
 			  cd /home/
 			  if [ -n "$url_download_db" ]; then

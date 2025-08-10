@@ -3857,7 +3857,7 @@ frps_panel() {
 
 			8)
 				send_stats "Block IP access"
-				echo "If you have accessed the anti-generation domain name, use this function to block IP+ port access, which is more secure."
+				echo "If you have accessed the anti-generation domain name, you can use this function to block IP+ port access, which is more secure."
 				read -e -p "Please enter the port you need to block:" frps_port
 				block_host_port "$frps_port" "$ipv4_address"
 				;;
@@ -4884,7 +4884,7 @@ elrepo_install() {
 		linux_Settings
 	fi
 	# Print detected operating system information
-	echo "Operating system detected:$os_name $os_version"
+	echo "Detected operating systems:$os_name $os_version"
 	# Install the corresponding ELRepo warehouse configuration according to the system version
 	if [[ "$os_version" == 8 ]]; then
 		echo "Install ELRepo repository configuration (version 8)..."
@@ -7585,7 +7585,7 @@ linux_ldnmp() {
 	  echo "Redis port: 6379"
 	  echo ""
 	  echo "Website url: https://$yuming"
-	  echo "Background login path: /admin"
+	  echo "Backend login path: /admin"
 	  echo "------------------------"
 	  echo "Username: admin"
 	  echo "Password: admin"
@@ -11470,7 +11470,7 @@ EOF
 
 						  ;;
 					  2)
-						  read -e -p "Please enter the keywords for parsing content that need to be deleted:" delhost
+						  read -e -p "Please enter the keywords of parsing content that need to be deleted:" delhost
 						  sed -i "/$delhost/d" /etc/hosts
 						  send_stats "Local host parsing and deletion"
 						  ;;

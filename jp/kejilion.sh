@@ -1761,7 +1761,7 @@ patch_wp_memory_limit() {
 	sed -i "/define(['\"]WP_MEMORY_LIMIT['\"].*/d" "$FILE"
 	sed -i "/define(['\"]WP_MAX_MEMORY_LIMIT['\"].*/d" "$FILE"
 
-	# 「Happy Publishing」で行の前に新しい定義を挿入する
+	# 插入新定义，放在含 "Happy publishing" 的行前
 	awk -v insert="define('WP_MEMORY_LIMIT', '$MEMORY_LIMIT');\ndefine('WP_MAX_MEMORY_LIMIT', '$MAX_MEMORY_LIMIT');" \
 	'
 	  /Happy publishing/ {
@@ -5539,10 +5539,10 @@ linux_trash() {
 		fi
 		;;
 	  4)
-		read -e -p "リサイクルビンをクリアすることを確認しますか？ [Y/N]：" confirm
+		read -e -p "确认清空回收站？[y/n]: " confirm
 		if [[ "$confirm" == "y" ]]; then
 		  trash-empty
-		  echo "リサイクルビンがクリアされました。"
+		  echo "回收站已清空。"
 		fi
 		;;
 	  *)
@@ -5554,13 +5554,13 @@ linux_trash() {
 
 
 
-# バックアップを作成します
+# 创建备份
 create_backup() {
-	send_stats "バックアップを作成します"
+	send_stats "创建备份"
 	local TIMESTAMP=$(date +"%Y%m%d%H%M%S")
 
-	# ユーザーにバックアップディレクトリを入力するように求めます
-	echo "バックアップ例を作成します："
+	# 提示用户输入备份目录
+	echo "创建备份示例："
 	echo "- 単一のディレクトリをバックアップします： /var /www"
 	echo "- バックアップ複数のディレクトリ： /etc /home /var /log"
 	echo "-directEnterはデフォルトのディレクトリ（ /etc /usr /home）を使用します"
@@ -7585,7 +7585,7 @@ linux_ldnmp() {
 	  echo "Redisポート：6379"
 	  echo ""
 	  echo "ウェブサイトURL：https：//$yuming"
-	  echo "バックグラウンドログインパス： /admin"
+	  echo "バックエンドログインパス： /admin"
 	  echo "------------------------"
 	  echo "ユーザー名：admin"
 	  echo "パスワード：管理者"
@@ -7816,7 +7816,7 @@ linux_ldnmp() {
 			  ;;
 		  2)
 			  echo "データベースのバックアップは、.GZ-endコンプレッションパッケージである必要があります。 Pagoda/1panelのバックアップデータのインポートをサポートするために、/home/directoryに入れてください。"
-			  read -e -p "ダウンロードリンクを入力して、バックアップデータをリモートでダウンロードすることもできます。 Enterを直接押してリモートダウンロードをスキップします。" url_download_db
+			  read -e -p "ダウンロードリンクを入力して、バックアップデータをリモートでダウンロードすることもできます。 Enterを直接押して、リモートダウンロードをスキップします：" url_download_db
 
 			  cd /home/
 			  if [ -n "$url_download_db" ]; then
@@ -11256,7 +11256,7 @@ EOF
 				echo "23。カナダ時間24。メキシコの時間"
 				echo "25。ブラジル時間26。アルゼンチン時間"
 				echo "------------------------"
-				echo "31。UTCグローバル標準時間"
+				echo "31. UTC全球标准时间"
 				echo "------------------------"
 				echo "0。前のメニューに戻ります"
 				echo "------------------------"
@@ -12253,7 +12253,7 @@ while true; do
 	  echo -e "${gl_kjlan}バッチでタスクを実行します${gl_bai}"
 	  echo -e "${gl_kjlan}11. ${gl_bai}Tech Lionスクリプトをインストールします${gl_kjlan}12. ${gl_bai}システムを更新します${gl_kjlan}13. ${gl_bai}システムを掃除します"
 	  echo -e "${gl_kjlan}14. ${gl_bai}Dockerをインストールします${gl_kjlan}15. ${gl_bai}BBR3をインストールします${gl_kjlan}16. ${gl_bai}1G仮想メモリをセットアップします"
-	  echo -e "${gl_kjlan}17. ${gl_bai}タイムゾーンを上海に設定します${gl_kjlan}18. ${gl_bai}すべてのポートを開きます${gl_kjlan}51. ${gl_bai}カスタムコマンド"
+	  echo -e "${gl_kjlan}17. ${gl_bai}タイムゾーンを上海に設定します${gl_kjlan}18. ${gl_bai}すべてのポートを開きます${gl_kjlan}51. ${gl_bai}自定义指令"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
 	  echo -e "${gl_kjlan}0.  ${gl_bai}メインメニューに戻ります"
 	  echo -e "${gl_kjlan}------------------------${gl_bai}"
@@ -12261,7 +12261,7 @@ while true; do
 
 	  case $sub_choice in
 		  1)
-			  send_stats "クラスターサーバーを追加します"
+			  send_stats "添加集群服务器"
 			  read -e -p "サーバー名：" server_name
 			  read -e -p "サーバーIP：" server_ip
 			  read -e -p "サーバーポート（22）：" server_port
@@ -12403,7 +12403,7 @@ while true; do
 	clear
 	echo "ログを更新します"
 	echo "------------------------"
-	echo "すべてのログ：${gh_proxy}raw.githubusercontent.com/kejilion/sh/main/kejilion_sh_log.txt"
+	echo "全部日志: ${gh_proxy}raw.githubusercontent.com/kejilion/sh/main/kejilion_sh_log.txt"
 	echo "------------------------"
 
 	curl -s ${gh_proxy}raw.githubusercontent.com/kejilion/sh/main/kejilion_sh_log.txt | tail -n 30
