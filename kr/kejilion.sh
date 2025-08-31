@@ -57,7 +57,7 @@ CheckFirstRun_true() {
 
 
 
-# 기능 매장 지점 정보를 수집하는 기능, 현재 스크립트 버전 번호, 사용 시간, 시스템 버전, CPU 아키텍처, 컴퓨터 국가 및 사용자가 사용하는 기능 이름을 기록합니다. 그들은 절대적으로 민감한 정보를 포함하지 않습니다. 제발 나를 믿으세요!
+# 기능 매장 지점 정보를 수집하는 기능, 현재 스크립트 버전 번호, 사용 시간, 시스템 버전, CPU 아키텍처, 기계 국가 및 사용자가 사용하는 기능 이름을 기록합니다. 그들은 절대적으로 민감한 정보를 포함하지 않습니다. 제발 나를 믿으세요!
 # 이 기능을 설계 해야하는 이유는 무엇입니까? 목적은 사용자가 사용하는 기능을 더 잘 이해하고 기능을 더욱 최적화하여 사용자 요구를 충족시키는 더 많은 기능을 시작하는 것입니다.
 # 전체 텍스트의 경우 Send_Stats 기능 호출 위치, 투명 및 오픈 소스를 검색 할 수 있으며 우려 사항이 있으면 사용을 거부 할 수 있습니다.
 
@@ -1618,7 +1618,7 @@ cf_purge_cache() {
 	# Zone_ids를 배열로 변환합니다
 	ZONE_IDS=($ZONE_IDS)
   else
-	# 캐시 청소 여부를 사용자에게 프롬프트합니다
+	# 캐시 청소 여부를 사용자에게 프롬프트하십시오
 	read -e -p "CloudFlare의 캐시를 청소해야합니까? (Y/N) :" answer
 	if [[ "$answer" == "y" ]]; then
 	  echo "CF 정보가 저장됩니다$CONFIG_FILE, 나중에 CF 정보를 수정할 수 있습니다"
@@ -3857,7 +3857,7 @@ frps_panel() {
 
 			8)
 				send_stats "IP 액세스를 차단하십시오"
-				echo "반세기 도메인 이름에 액세스 한 경우이 기능을 사용하여 IP+ 포트 액세스를 차단할 수 있습니다."
+				echo "반세기 도메인 이름에 액세스 한 경우이 기능을 사용하여 IP+ 포트 액세스를 차단하십시오."
 				read -e -p "차단 해야하는 포트를 입력하십시오." frps_port
 				block_host_port "$frps_port" "$ipv4_address"
 				;;
@@ -4884,7 +4884,7 @@ elrepo_install() {
 		linux_Settings
 	fi
 	# 감지 된 운영 체제 정보를 인쇄합니다
-	echo "운영 체제 감지 :$os_name $os_version"
+	echo "감지 된 운영 체제 :$os_name $os_version"
 	# 시스템 버전에 따라 해당 Elrepo 창고 구성을 설치하십시오.
 	if [[ "$os_version" == 8 ]]; then
 		echo "Elrepo 저장소 구성 (버전 8)을 설치하십시오 ..."
@@ -7585,7 +7585,7 @@ linux_ldnmp() {
 	  echo "Redis Port : 6379"
 	  echo ""
 	  echo "웹 사이트 URL : https : //$yuming"
-	  echo "백그라운드 로그인 경로 : /admin"
+	  echo "백엔드 로그인 경로 : /admin"
 	  echo "------------------------"
 	  echo "사용자 이름 : 관리자"
 	  echo "비밀번호 : 관리자"
@@ -7816,7 +7816,7 @@ linux_ldnmp() {
 			  ;;
 		  2)
 			  echo "데이터베이스 백업은 .gz-end 압축 패키지 여야합니다. Pagoda/1Panel의 백업 데이터 가져 오기를 지원하려면/홈/디렉토리에 넣으십시오."
-			  read -e -p "다운로드 링크를 입력하여 백업 데이터를 원격으로 다운로드 할 수도 있습니다. Enter가 직접 누르면 원격 다운로드를 건너 뜁니다." url_download_db
+			  read -e -p "다운로드 링크를 입력하여 백업 데이터를 원격으로 다운로드 할 수도 있습니다. 원격 다운로드를 건너 뛰려면 Enter를 직접 누르십시오." url_download_db
 
 			  cd /home/
 			  if [ -n "$url_download_db" ]; then
@@ -10806,7 +10806,7 @@ linux_Settings() {
 				  fi
 				  find /usr/local/bin/ -type l -exec bash -c 'test "$(readlink -f {})" = "/usr/local/bin/k" && rm -f {}' \;
 				  ln -s /usr/local/bin/k /usr/local/bin/$kuaijiejian
-				  echo "바로 가기 키가 설정되어 있습니다"
+				  echo "바로 가기 키가 설정되었습니다"
 				  send_stats "스크립트 바로 가기 키가 설정되었습니다"
 				  break_end
 				  linux_Settings
