@@ -1512,7 +1512,7 @@ fi
 
 add_yuming() {
 	  ip_address
-	  echo -e "First resolve the domain name to the local IP:${gl_huang}$ipv4_address  $ipv6_address${gl_bai}"
+	  echo -e "First resolve the domain name to the native IP:${gl_huang}$ipv4_address  $ipv6_address${gl_bai}"
 	  read -e -p "Please enter your IP or the resolved domain name:" yuming
 }
 
@@ -1694,7 +1694,7 @@ nginx_waf() {
 		wget -O /home/web/nginx.conf "${gh_proxy}raw.githubusercontent.com/kejilion/nginx/main/nginx10.conf"
 	fi
 
-	# Decide to turn on or off WAF according to the mode parameter
+	# Decide to turn on or off WAF according to mode parameters
 	if [ "$mode" == "on" ]; then
 		# Turn on WAF: Remove comments
 		sed -i 's|# load_module /etc/nginx/modules/ngx_http_modsecurity_module.so;|load_module /etc/nginx/modules/ngx_http_modsecurity_module.so;|' /home/web/nginx.conf > /dev/null 2>&1
@@ -2073,7 +2073,7 @@ web_security() {
 
 				  22)
 					  send_stats "High load on 5 seconds shield"
-					  echo -e "${gl_huang}The website automatically detects every 5 minutes. When high load is detected, the shield will be automatically turned on, and low load will be automatically turned off for 5 seconds.${gl_bai}"
+					  echo -e "${gl_huang}The website automatically detects every 5 minutes. When it reaches the detection of a high load, the shield will be automatically turned on, and the low load will be automatically turned off for 5 seconds.${gl_bai}"
 					  echo "--------------"
 					  echo "Get CF parameters:"
 					  echo -e "Go to the upper right corner of the cf background, select the API token on the left, and obtain it${gl_huang}Global API Key${gl_bai}"
@@ -3857,7 +3857,7 @@ frps_panel() {
 
 			8)
 				send_stats "Block IP access"
-				echo "If you have accessed the anti-generation domain name, use this function to block IP+ port access, which is more secure."
+				echo "If you have accessed the anti-generation domain name, you can use this function to block IP+ port access, which is more secure."
 				read -e -p "Please enter the port you need to block:" frps_port
 				block_host_port "$frps_port" "$ipv4_address"
 				;;
@@ -4411,7 +4411,7 @@ sed -i 's/^\s*#\?\s*PermitRootLogin.*/PermitRootLogin yes/g' /etc/ssh/sshd_confi
 sed -i 's/^\s*#\?\s*PasswordAuthentication.*/PasswordAuthentication yes/g' /etc/ssh/sshd_config;
 rm -rf /etc/ssh/sshd_config.d/* /etc/ssh/ssh_config.d/*
 restart_ssh
-echo -e "${gl_lv}ROOT login is set up!${gl_bai}"
+echo -e "${gl_lv}ROOT login settings are complete!${gl_bai}"
 
 }
 
@@ -5025,7 +5025,7 @@ clamav_scan() {
 		clamav/clamav-debian:latest \
 		clamscan -r --log=/var/log/clamav/scan.log $SCAN_PARAMS
 
-	echo -e "${gl_lv}$@ Scan is completed, virus report is stored in${gl_huang}/home/docker/clamav/log/scan.log${gl_bai}"
+	echo -e "${gl_lv}$@ Scan is completed, virus report is stored${gl_huang}/home/docker/clamav/log/scan.log${gl_bai}"
 	echo -e "${gl_lv}If there is a virus, please${gl_huang}scan.log${gl_lv}Search for FOUND keyword in the file to confirm the location of the virus${gl_bai}"
 
 }
@@ -5851,7 +5851,7 @@ ssh_manager() {
 	while true; do
 		clear
 		echo "SSH Remote Connection Tool"
-		echo "Can connect to other Linux systems via SSH"
+		echo "Can be connected to other Linux systems via SSH"
 		echo "------------------------"
 		list_connections
 		echo "1. Create a new connection 2. Use a connection 3. Delete a connection"
@@ -7816,7 +7816,7 @@ linux_ldnmp() {
 			  ;;
 		  2)
 			  echo "The database backup must be a .gz-end compressed package. Please put it in the /home/ directory to support the import of backup data of Pagoda/1panel."
-			  read -e -p "You can also enter the download link to remotely download the backup data. Directly press Enter to skip remote download:" url_download_db
+			  read -e -p "You can also enter the download link to remotely download the backup data. Directly press Enter will skip remote download:" url_download_db
 
 			  cd /home/
 			  if [ -n "$url_download_db" ]; then
@@ -10776,7 +10776,7 @@ linux_Settings() {
 	  echo -e "${gl_kjlan}17.  ${gl_bai}Firewall Advanced Manager${gl_kjlan}18.  ${gl_bai}Modify the host name"
 	  echo -e "${gl_kjlan}19.  ${gl_bai}Switch system update source${gl_kjlan}20.  ${gl_bai}Timing task management"
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}21.  ${gl_bai}Native host parsing${gl_kjlan}22.  ${gl_bai}SSH Defense Program"
+	  echo -e "${gl_kjlan}21.  ${gl_bai}Native host analysis${gl_kjlan}22.  ${gl_bai}SSH Defense Program"
 	  echo -e "${gl_kjlan}23.  ${gl_bai}Automatic shutdown of current limit${gl_kjlan}24.  ${gl_bai}ROOT private key login mode"
 	  echo -e "${gl_kjlan}25.  ${gl_bai}TG-bot system monitoring and early warning${gl_kjlan}26.  ${gl_bai}Fix OpenSSH high-risk vulnerabilities (Xiuyuan)"
 	  echo -e "${gl_kjlan}27.  ${gl_bai}Red Hat Linux kernel upgrade${gl_kjlan}28.  ${gl_bai}Optimization of kernel parameters in Linux system${gl_huang}★${gl_bai}"
@@ -11470,7 +11470,7 @@ EOF
 
 						  ;;
 					  2)
-						  read -e -p "Please enter the keywords of parsing content that need to be deleted:" delhost
+						  read -e -p "Please enter the keywords for parsing content that need to be deleted:" delhost
 						  sed -i "/$delhost/d" /etc/hosts
 						  send_stats "Local host parsing and deletion"
 						  ;;
@@ -11805,7 +11805,7 @@ EOF
 			  echo -e "6. Turn on${gl_huang}BBR${gl_bai}accelerate"
 			  echo -e "7. Set the time zone to${gl_huang}Shanghai${gl_bai}"
 			  echo -e "8. Automatically optimize DNS address${gl_huang}Overseas: 1.1.1.1 8.8.8.8 Domestic: 223.5.5.5${gl_bai}"
-			  echo -e "9. Install basic tools${gl_huang}docker wget sudo tar unzip socat btop nano vim${gl_bai}"
+			  echo -e "9. Install the basic tools${gl_huang}docker wget sudo tar unzip socat btop nano vim${gl_bai}"
 			  echo -e "10. Switch to kernel parameter optimization in Linux system${gl_huang}Balanced optimization mode${gl_bai}"
 			  echo "------------------------------------------------"
 			  read -e -p "Are you sure to have one-click maintenance? (Y/N):" choice
