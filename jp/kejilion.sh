@@ -1512,7 +1512,7 @@ fi
 
 add_yuming() {
 	  ip_address
-	  echo -e "最初にドメイン名をローカルIPに解決します。${gl_huang}$ipv4_address  $ipv6_address${gl_bai}"
+	  echo -e "最初にドメイン名をネイティブIPに解決します。${gl_huang}$ipv4_address  $ipv6_address${gl_bai}"
 	  read -e -p "IPまたは解決されたドメイン名を入力してください：" yuming
 }
 
@@ -1694,7 +1694,7 @@ nginx_waf() {
 		wget -O /home/web/nginx.conf "${gh_proxy}raw.githubusercontent.com/kejilion/nginx/main/nginx10.conf"
 	fi
 
-	# モードパラメーターに従ってWAFをオンまたはオフにすることにしました
+	# モードパラメーターに従ってWAFをオンまたはオフにすることを決定します
 	if [ "$mode" == "on" ]; then
 		# WAFをオンにしてください：コメントを削除します
 		sed -i 's|# load_module /etc/nginx/modules/ngx_http_modsecurity_module.so;|load_module /etc/nginx/modules/ngx_http_modsecurity_module.so;|' /home/web/nginx.conf > /dev/null 2>&1
@@ -2073,7 +2073,7 @@ web_security() {
 
 				  22)
 					  send_stats "5秒シールドでの高負荷"
-					  echo -e "${gl_huang}ウェブサイトは5分ごとに自動的に検出されます。高負荷が検出されると、シールドが自動的にオンになり、低負荷が5秒間自動的にオフになります。${gl_bai}"
+					  echo -e "${gl_huang}ウェブサイトは5分ごとに自動的に検出されます。高負荷の検出に達すると、シールドが自動的にオンになり、低負荷が5秒間自動的にオフになります。${gl_bai}"
 					  echo "--------------"
 					  echo "CFパラメーターを取得します："
 					  echo -e "CFバックグラウンドの右上隅に移動し、左側のAPIトークンを選択して、取得します${gl_huang}Global API Key${gl_bai}"
@@ -3857,7 +3857,7 @@ frps_panel() {
 
 			8)
 				send_stats "IPアクセスをブロックします"
-				echo "アンチジェネレーションドメイン名にアクセスした場合、この関数を使用して、より安全なIP+ポートアクセスをブロックできます。"
+				echo "アンチジェネレーションドメイン名にアクセスした場合は、この関数を使用して、より安全なIP+ポートアクセスをブロックします。"
 				read -e -p "ブロックする必要があるポートを入力してください。" frps_port
 				block_host_port "$frps_port" "$ipv4_address"
 				;;
@@ -5710,7 +5710,7 @@ list_connections() {
 # 新しい接続を追加します
 add_connection() {
 	send_stats "新しい接続を追加します"
-	echo "新しい接続を作成する例："
+	echo "新しい接続例を作成します："
 	echo "- 接続名：my_server"
 	echo "-  IPアドレス：192.168.1.100"
 	echo "- ユーザー名：root"
@@ -10776,7 +10776,7 @@ linux_Settings() {
 	  echo -e "${gl_kjlan}17.  ${gl_bai}ファイアウォール上級マネージャー${gl_kjlan}18.  ${gl_bai}ホスト名を変更します"
 	  echo -e "${gl_kjlan}19.  ${gl_bai}システムの更新ソースを切り替えます${gl_kjlan}20.  ${gl_bai}タイミングタスク管理"
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}21.  ${gl_bai}ネイティブホストの解析${gl_kjlan}22.  ${gl_bai}SSH防衛プログラム"
+	  echo -e "${gl_kjlan}21.  ${gl_bai}ネイティブホスト分析${gl_kjlan}22.  ${gl_bai}SSH防衛プログラム"
 	  echo -e "${gl_kjlan}23.  ${gl_bai}電流制限の自動シャットダウン${gl_kjlan}24.  ${gl_bai}ルート秘密キーログインモード"
 	  echo -e "${gl_kjlan}25.  ${gl_bai}TGボットシステムの監視と早期警告${gl_kjlan}26.  ${gl_bai}opensshの高リスクの脆弱性（xiuyuan）を修正"
 	  echo -e "${gl_kjlan}27.  ${gl_bai}Red Hat Linuxカーネルのアップグレード${gl_kjlan}28.  ${gl_bai}Linuxシステムにおけるカーネルパラメーターの最適化${gl_huang}★${gl_bai}"
@@ -11244,7 +11244,7 @@ EOF
 				echo "3。日本の東京時間4。韓国のソウル時間"
 				echo "5。シンガポール時間6。インドのコルカタ時間"
 				echo "7。アラブ首長国連邦のドバイ時間8。オーストラリアのシドニー時間"
-				echo "9。タイのバンコクでの時間"
+				echo "9。バンコク・タイム、タイ"
 				echo "------------------------"
 				echo "ヨーロッパ"
 				echo "11。英国のロンドン時間12。パリの時間フランスの時間"
@@ -11900,7 +11900,7 @@ EOF
 
 			  echo "プライバシーとセキュリティ"
 			  echo "スクリプトは、ユーザー機能に関するデータを収集し、スクリプトエクスペリエンスを最適化し、より楽しく便利な機能を作成します。"
-			  echo "スクリプトバージョン番号、使用時間、システムバージョン、CPUアーキテクチャ、マシンの国、および使用される関数の名前を収集します。"
+			  echo "スクリプトバージョン番号、使用時間、システムバージョン、CPUアーキテクチャ、マシンの国、使用される機能の名前を収集します。"
 			  echo "------------------------------------------------"
 			  echo -e "現在のステータス：$status_message"
 			  echo "--------------------"
