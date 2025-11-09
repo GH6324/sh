@@ -59,7 +59,7 @@ CheckFirstRun_true() {
 
 # 이 기능은 함수에 묻혀있는 정보를 수집하고 사용자가 사용하는 현재 스크립트 버전 번호, 사용 시간, 시스템 버전, CPU 아키텍처, 시스템 국가 및 기능 이름을 기록합니다. 민감한 정보는 포함되어 있지 않으니 걱정하지 마세요! 저를 믿어주세요!
 # 이 기능은 왜 설계되었나요? 그 목적은 사용자가 사용하고 싶어하는 기능을 더 잘 이해하고, 기능을 더욱 최적화하고 사용자 요구에 맞는 더 많은 기능을 출시하는 것입니다.
-# send_stats 함수 호출 위치에 대한 전문을 검색할 수 있습니다. 투명하고 오픈 소스입니다. 우려되는 사항이 있는 경우 이용을 거부하실 수 있습니다.
+# send_stats 함수 호출 위치에 대한 전문을 검색할 수 있습니다. 투명하고 오픈 소스입니다. 불편하신 점이 있으시면 이용을 거부하실 수 있습니다.
 
 
 
@@ -2695,7 +2695,7 @@ while true; do
 	 case $choice in
 		1)
 			check_disk_space $app_size
-			read -e -p "애플리케이션 외부 서비스 포트를 입력하고 Enter를 누르면 기본적으로 사용됩니다.${docker_port}포트:" app_port
+			read -e -p "애플리케이션 외부 서비스 포트를 입력하고 Enter 키를 누르면 기본적으로 사용됩니다.${docker_port}포트:" app_port
 			local app_port=${app_port:-${docker_port}}
 			local docker_port=$app_port
 
@@ -2802,7 +2802,7 @@ docker_app_plus() {
 		case $choice in
 			1)
 				check_disk_space $app_size
-				read -e -p "애플리케이션 외부 서비스 포트를 입력하고 Enter를 누르면 기본적으로 사용됩니다.${docker_port}포트:" app_port
+				read -e -p "애플리케이션 외부 서비스 포트를 입력하고 Enter 키를 누르면 기본적으로 사용됩니다.${docker_port}포트:" app_port
 				local app_port=${app_port:-${docker_port}}
 				local docker_port=$app_port
 				install jq
@@ -3857,7 +3857,7 @@ frps_panel() {
 
 			8)
 				send_stats "IP 접근 차단"
-				echo "역방향 도메인 이름 접근이 있는 경우, 이 기능을 사용하면 IP+포트 접근을 차단할 수 있어 더욱 안전합니다."
+				echo "역방향 도메인 이름 접근을 가지고 있는 경우, 이 기능을 사용하면 IP+포트 접근을 차단할 수 있어 더욱 안전합니다."
 				read -e -p "차단할 포트를 입력하세요:" frps_port
 				block_host_port "$frps_port" "$ipv4_address"
 				;;
@@ -5501,7 +5501,7 @@ linux_trash() {
 
 	clear
 	echo -e "현재 휴지통${trash_status}"
-	echo -e "활성화한 후에는 중요한 파일이 실수로 삭제되는 것을 방지하기 위해 rm으로 삭제된 파일이 먼저 휴지통에 들어갑니다!"
+	echo -e "활성화한 후에는 중요한 파일이 실수로 삭제되는 것을 방지하기 위해 rm으로 삭제된 파일이 먼저 휴지통에 저장됩니다!"
 	echo "------------------------------------------------"
 	ls -l --color=auto "$TRASH_DIR" 2>/dev/null || echo "휴지통이 비어 있습니다."
 	echo "------------------------"
@@ -6019,7 +6019,7 @@ disk_manager() {
 	send_stats "하드디스크 관리 기능"
 	while true; do
 		clear
-		echo "하드 드라이브 파티션 관리"
+		echo "하드 디스크 파티션 관리"
 		echo -e "${gl_huang}이 기능은 내부 테스트 중이므로 프로덕션 환경에서는 사용하면 안 됩니다.${gl_bai}"
 		echo "------------------------"
 		list_partitions
@@ -7215,7 +7215,7 @@ linux_Oracle() {
 		  1)
 			  clear
 			  echo "활성 스크립트: CPU 사용량 10-20% 메모리 사용량 20%"
-			  read -e -p "정말로 설치하시겠습니까? (예/아니요):" choice
+			  read -e -p "설치하시겠습니까? (예/아니요):" choice
 			  case "$choice" in
 				[Yy])
 
@@ -8390,7 +8390,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}67.  ${gl_bai}ddns-go 동적 DNS 관리 도구${gl_huang}★${gl_bai}            ${gl_kjlan}68.  ${gl_bai}AllinSSL 인증서 관리 플랫폼"
 	  echo -e "${gl_kjlan}69.  ${gl_bai}SFTPGo 파일 전송 도구${gl_kjlan}70.  ${gl_bai}AstrBot 챗봇 프레임워크"
 	  echo -e "${gl_kjlan}------------------------"
-	  echo -e "${gl_kjlan}71.  ${gl_bai}Navidrome 개인 음악 서버${gl_kjlan}72.  ${gl_bai}비트워드 비밀번호 관리자${gl_huang}★${gl_bai}"
+	  echo -e "${gl_kjlan}71.  ${gl_bai}Navidrome 개인 음악 서버${gl_kjlan}72.  ${gl_bai}비트워든 비밀번호 관리자${gl_huang}★${gl_bai}"
 	  echo -e "${gl_kjlan}73.  ${gl_bai}LibreTV 개인 영화${gl_kjlan}74.  ${gl_bai}MoonTV 개인 영화"
 	  echo -e "${gl_kjlan}75.  ${gl_bai}멜로디 음악 마법사${gl_kjlan}76.  ${gl_bai}온라인 DOS 오래된 게임"
 	  echo -e "${gl_kjlan}77.  ${gl_bai}Thunder 오프라인 다운로드 도구${gl_kjlan}78.  ${gl_bai}PandaWiki 지능형 문서 관리 시스템"
@@ -8581,7 +8581,7 @@ linux_panel() {
 				check_docker_app
 				check_docker_image_update $docker_name
 				clear
-				echo -e "네자 모니터링$check_docker $update_status"
+				echo -e "나타 모니터링$check_docker $update_status"
 				echo "오픈 소스, 가볍고 사용하기 쉬운 서버 모니터링 및 운영 및 유지 관리 도구"
 				echo "공식 웹사이트 구축 문서: https://nezha.wiki/guide/dashboard.html"
 				if docker inspect "$docker_name" &>/dev/null; then
@@ -8690,7 +8690,7 @@ linux_panel() {
 				case $choice in
 					1)
 						check_disk_space 2
-						read -e -p "이메일 도메인 이름을 설정하십시오(예: mail.yuming.com):" yuming
+						read -e -p "이메일 도메인 이름을 설정하세요(예: mail.yuming.com):" yuming
 						mkdir -p /home/docker
 						echo "$yuming" > /home/docker/mail.txt
 						echo "------------------------"
@@ -10688,7 +10688,7 @@ linux_work() {
 			  echo -e "SSH 상주 모드${tmux_sshd_status}"
 			  echo "SSH 연결을 연 후 바로 상주 모드로 들어가고 이전 작업 상태로 바로 돌아갑니다."
 			  echo "------------------------"
-			  echo "1. 켜짐 2. 꺼짐"
+			  echo "1. 켜기 2. 끄기"
 			  echo "------------------------"
 			  echo "0. 이전 메뉴로 돌아가기"
 			  echo "------------------------"
@@ -11019,8 +11019,8 @@ EOF
 						;;
 					2)
 						sysctl -w net.ipv6.conf.all.disable_ipv6=0 > /dev/null 2>&1
-						echo "먼저 IPv6로 전환됨"
-						send_stats "먼저 IPv6로 전환됨"
+						echo "IPv6 우선순위로 전환됨"
+						send_stats "IPv6 우선순위로 전환됨"
 						;;
 
 					3)
@@ -11249,7 +11249,7 @@ EOF
 				echo "유럽"
 				echo "11. 영국 런던 시간 12. 프랑스 파리 시간"
 				echo "13. 독일 베를린 시간 14. 러시아 모스크바 시간"
-				echo "15. 네덜란드 위트라흐트 시간 16. 스페인 마드리드 시간"
+				echo "15. 네덜란드 유트라흐트 시간 16. 스페인 마드리드 시간"
 				echo "------------------------"
 				echo "미국"
 				echo "21. 미국 서부 시간 22. 미국 동부 시간"
@@ -12555,7 +12555,7 @@ done
 
 
 k_info() {
-send_stats "k 명령 참조 사용 사례"
+send_stats "k 명령 참조 예"
 echo "-------------------"
 echo "영상 소개: https://www.bilibili.com/video/BV1ib421E7it?t=0.1"
 echo "다음은 k 명령의 참조 사용 사례입니다."

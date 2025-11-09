@@ -4411,7 +4411,7 @@ sed -i 's/^\s*#\?\s*PermitRootLogin.*/PermitRootLogin yes/g' /etc/ssh/sshd_confi
 sed -i 's/^\s*#\?\s*PasswordAuthentication.*/PasswordAuthentication yes/g' /etc/ssh/sshd_config;
 rm -rf /etc/ssh/sshd_config.d/* /etc/ssh/ssh_config.d/*
 restart_ssh
-echo -e "${gl_lv}ROOT login setup is complete!${gl_bai}"
+echo -e "${gl_lv}ROOT login setup is completed!${gl_bai}"
 
 }
 
@@ -5215,7 +5215,7 @@ restore_defaults() {
 
 # Website building optimization function
 optimize_web_server() {
-	echo -e "${gl_lv}Switch to website building optimization mode...${gl_bai}"
+	echo -e "${gl_lv}Switch to website construction optimization mode...${gl_bai}"
 
 	echo -e "${gl_lv}Optimize file descriptors...${gl_bai}"
 	ulimit -n 65535
@@ -6019,7 +6019,7 @@ disk_manager() {
 	send_stats "Hard disk management function"
 	while true; do
 		clear
-		echo "Hard drive partition management"
+		echo "Hard disk partition management"
 		echo -e "${gl_huang}This feature is under internal testing and should not be used in a production environment.${gl_bai}"
 		echo "------------------------"
 		list_partitions
@@ -6437,7 +6437,7 @@ linux_tools() {
 
   while true; do
 	  clear
-	  # send_stats "Basic Tools"
+	  # send_stats "Basic tools"
 	  echo -e "basic tools"
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}1.   ${gl_bai}curl download tool${gl_huang}★${gl_bai}                   ${gl_kjlan}2.   ${gl_bai}wget download tool${gl_huang}★${gl_bai}"
@@ -8350,7 +8350,7 @@ linux_panel() {
 	  echo -e "${gl_kjlan}------------------------"
 	  echo -e "${gl_kjlan}1.   ${gl_bai}Pagoda panel official version${gl_kjlan}2.   ${gl_bai}aaPanel Pagoda International Version"
 	  echo -e "${gl_kjlan}3.   ${gl_bai}1Panel new generation management panel${gl_kjlan}4.   ${gl_bai}NginxProxyManager visualization panel"
-	  echo -e "${gl_kjlan}5.   ${gl_bai}OpenList multi-store file list program${gl_kjlan}6.   ${gl_bai}Ubuntu Remote Desktop Web Version"
+	  echo -e "${gl_kjlan}5.   ${gl_bai}OpenList multi-store file list program${gl_kjlan}6.   ${gl_bai}Ubuntu Remote Desktop Web Edition"
 	  echo -e "${gl_kjlan}7.   ${gl_bai}Nezha Probe VPS Monitoring Panel${gl_kjlan}8.   ${gl_bai}QB offline BT magnetic download panel"
 	  echo -e "${gl_kjlan}9.   ${gl_bai}Poste.io mail server program${gl_kjlan}10.  ${gl_bai}RocketChat multi-person online chat system"
 	  echo -e "${gl_kjlan}------------------------"
@@ -10831,7 +10831,7 @@ linux_Settings() {
 			echo "python version management"
 			echo "Video introduction: https://www.bilibili.com/video/BV1Pm42157cK?t=0.1"
 			echo "---------------------------------------"
-			echo "This function can seamlessly install any version officially supported by Python!"
+			echo "This function can seamlessly install any version officially supported by python!"
 			local VERSION=$(python3 -V 2>&1 | awk '{print $2}')
 			echo -e "Current python version number:${gl_huang}$VERSION${gl_bai}"
 			echo "------------"
