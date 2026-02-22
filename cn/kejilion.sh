@@ -9709,24 +9709,18 @@ moltbot_menu() {
 		send_stats "开始安装 OpenClaw..."
 
 		if command -v dnf &>/dev/null; then
+			curl -fsSL https://rpm.nodesource.com/setup_24.x | sudo bash -
 			dnf update -y
 			dnf group install -y "Development Tools" "Development Libraries"
-			dnf install -y cmake libatomic
+			dnf install -y cmake libatomic nodejs
 		fi
 
 		if command -v apt &>/dev/null; then
+			curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
 			apt update -y
-			apt install build-essential python3 libatomic1 -y
+			apt install build-essential python3 libatomic1 nodejs -y
 		fi
 
-
-		curl -o- ${gh_proxy}raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
-
-		export NVM_DIR="$HOME/.nvm"
-		[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-		[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-
-		nvm install node
 		country=$(curl -s ipinfo.io/country)
 		if [[ "$country" == "CN" || "$country" == "HK" ]]; then
 			npm config set registry https://registry.npmmirror.com
