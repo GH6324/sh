@@ -9704,10 +9704,8 @@ moltbot_menu() {
 		sleep 3
 	}
 
-	install_moltbot() {
-		echo "开始安装 OpenClaw..."
-		send_stats "开始安装 OpenClaw..."
 
+	install_node_and_tools() {
 		if command -v dnf &>/dev/null; then
 			curl -fsSL https://rpm.nodesource.com/setup_24.x | sudo bash -
 			dnf update -y
@@ -9720,6 +9718,13 @@ moltbot_menu() {
 			apt update -y
 			apt install build-essential python3 libatomic1 nodejs -y
 		fi
+	}
+
+	install_moltbot() {
+		echo "开始安装 OpenClaw..."
+		send_stats "开始安装 OpenClaw..."
+
+		install_node_and_tools
 
 		country=$(curl -s ipinfo.io/country)
 		if [[ "$country" == "CN" || "$country" == "HK" ]]; then
@@ -10267,6 +10272,7 @@ EOF
 	update_moltbot() {
 		echo "更新 OpenClaw..."
 		send_stats "更新 OpenClaw..."
+		install_node_and_tools
 		npm install -g openclaw@latest
 		start_gateway
 		add_app_id
