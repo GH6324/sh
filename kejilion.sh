@@ -10275,6 +10275,7 @@ EOF
 		install_node_and_tools
 		npm install -g openclaw@latest
 		start_gateway
+		hash -r
 		add_app_id
 		echo "更新完成"
 		break_end
