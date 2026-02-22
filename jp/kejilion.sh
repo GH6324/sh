@@ -9704,22 +9704,28 @@ moltbot_menu() {
 		sleep 3
 	}
 
+
+	install_node_and_tools() {
+		if command -v dnf &>/dev/null; then
+			curl -fsSL https://rpm.nodesource.com/setup_24.x | sudo bash -
+			dnf update -y
+			dnf group install -y "Development Tools" "Development Libraries"
+			dnf install -y cmake libatomic nodejs
+		fi
+
+		if command -v apt &>/dev/null; then
+			curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+			apt update -y
+			apt install build-essential python3 libatomic1 nodejs -y
+		fi
+	}
+
 	install_moltbot() {
 		echo "OpenClaw のインストールを開始します..."
 		send_stats "OpenClaw のインストールを開始します..."
 
-		if command -v dnf &>/dev/null; then
-			dnf update -y
-			dnf group install -y "Development Tools" "Development Libraries"
-			dnf install -y cmake
-		fi
+		install_node_and_tools
 
-		if command -v apt &>/dev/null; then
-			apt update -y
-			apt install build-essential python3 -y
-		fi
-
-		install node npm
 		country=$(curl -s ipinfo.io/country)
 		if [[ "$country" == "CN" || "$country" == "HK" ]]; then
 			npm config set registry https://registry.npmmirror.com
@@ -10266,8 +10272,10 @@ EOF
 	update_moltbot() {
 		echo "OpenClaw を更新..."
 		send_stats "OpenClaw を更新..."
+		install_node_and_tools
 		npm install -g openclaw@latest
 		start_gateway
+		hash -r
 		add_app_id
 		echo "アップデート完了"
 		break_end
