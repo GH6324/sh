@@ -62,6 +62,15 @@ fi
 unset KPANEL_SYSTEM_TUNING_SSHD_CONFIG KPANEL_SYSTEM_TUNING_SSHD_RUN_DIR KPANEL_SYSTEM_TUNING_SYSTEMD_DIR
 unset -f apt sshd ss install
 
+: > "$temporary/system-update-actions"
+(
+	kpanel_system_tuning_has_package_manager() { return 0; }
+	kpanel_system_tuning_switch_mirror() { printf '%s\n' mirror >> "$temporary/system-update-actions"; return 1; }
+	linux_update() { printf '%s\n' update >> "$temporary/system-update-actions"; }
+	kpanel_system_tuning_run_item system-update
+)
+[ "$(paste -sd, "$temporary/system-update-actions")" = "mirror,update" ]
+
 : > "$temporary/ready-items"
 kpanel_system_tuning_item_ready() { grep -Fxq "$1" "$temporary/ready-items"; }
 kpanel_system_tuning_run_item() { printf '%s\n' "$1" >> "$temporary/run-items"; printf '%s\n' "$1" >> "$temporary/ready-items"; }

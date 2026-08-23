@@ -4582,7 +4582,8 @@ kpanel_system_tuning_run_item() {
 	case "$1" in
 		system-update)
 			kpanel_system_tuning_has_package_manager update || { kpanel_system_tuning_error "当前系统没有受支持的软件包管理器"; return 1; }
-			kpanel_system_tuning_switch_mirror || { kpanel_system_tuning_error "系统更新源优化失败"; return 1; }
+			# 更新源优化保持尽力执行，不因其返回码中断一条龙调优。
+			kpanel_system_tuning_switch_mirror || true
 			kpanel_system_tuning_run_command linux_update || { kpanel_system_tuning_error "系统软件包更新失败"; return 1; }
 			;;
 		system-cleanup)
