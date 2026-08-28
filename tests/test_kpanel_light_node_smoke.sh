@@ -60,6 +60,7 @@ account_body="$(
 	' "${normalized_script}"
 )"
 service_body="$(sed -n "/^\[Unit\]$/,/^KPANEL_NODE_SERVICE$/p" "${normalized_script}" | head -n -1)"
+terminal_service_body="$(sed -n "/^Description=KPanel Lightweight Node Root PTY Broker$/,/^KPANEL_NODE_TERMINAL_SERVICE$/p" "${normalized_script}" | head -n -1)"
 timer_body="$(sed -n "/^\[Timer\]$/,/^KPANEL_NODE_UPDATE_TIMER$/p" "${normalized_script}" | head -n -1)"
 
 printf '%s\n' "${protocol_body}" | grep -F '[ "${KJ_LIGHT_NODE_PROTOCOL:-}" = "1" ]' >/dev/null
@@ -74,7 +75,7 @@ printf '%s\n' "${join_body}" | grep -F 'kpl1.*)' >/dev/null
 printf '%s\n' "${join_body}" | grep -F 'kpanel_node_ensure_account || return 1' >/dev/null
 printf '%s\n' "${join_body}" | grep -F "LC_ALL=C tr -cd '[:alnum:]_. -'" >/dev/null
 printf '%s\n' "${join_body}" | grep -F 'resume_enrollment=true' >/dev/null
-printf '%s\n' "${join_body}" | grep -F '授权已保存' >/dev/null
+printf '%s\n' "${join_body}" | grep -Eq '授权已保存|授權已儲存|authorization (has been )?saved' >/dev/null
 printf '%s\n' "${join_body}" | grep -F '"$KPANEL_NODE_INSTALL_BIN" -d -o root -g kejilion-node' >/dev/null
 printf '%s\n' "${account_body}" | grep -F 'useradd --system --no-create-home' >/dev/null
 printf '%s\n' "${account_body}" | grep -F 'systemd-sysusers "$sysusers_config"' >/dev/null
@@ -83,6 +84,8 @@ printf '%s\n' "${account_body}" | grep -F 'adduser -S -D -H' >/dev/null
 printf '%s\n' "${account_body}" | grep -F 'id -gn kejilion-node' >/dev/null
 printf '%s\n' "${join_body}" | grep -F 'chown root:kejilion-node "$KPANEL_NODE_CONFIG"' >/dev/null
 printf '%s\n' "${join_body}" | grep -F 'chmod 0640 "$KPANEL_NODE_CONFIG"' >/dev/null
+printf '%s\n' "${join_body}" | grep -F 'chown root:root "$KPANEL_NODE_TERMINAL_CONFIG"' >/dev/null
+printf '%s\n' "${join_body}" | grep -F 'chmod 0600 "$KPANEL_NODE_TERMINAL_CONFIG"' >/dev/null
 grep -F '[ -d /run/systemd/system ]' "${normalized_script}" >/dev/null
 grep -F 'KPANEL_NODE_INSTALL_BIN="$(type -P install 2>/dev/null || true)"' "${normalized_script}" >/dev/null
 grep -F 'KPANEL_NODE_SYSTEMCTL="$(type -P systemctl 2>/dev/null || true)"' "${normalized_script}" >/dev/null
@@ -105,6 +108,10 @@ grep -F -- "--proto '=https' --tlsv1.2" "${updater}" >/dev/null
 grep -F 'SHA256SUMS' "${updater}" >/dev/null
 grep -F 'sha256sum' "${updater}" >/dev/null
 grep -F "grep -Eq '^[^[:space:]]+ light-v1$'" "${updater}" >/dev/null
+if grep -F 'light-terminal-v1' "${normalized_script}" >/dev/null; then
+	echo "lightweight node installer still names the removed terminal protocol" >&2
+	exit 1
+fi
 grep -F 'was rolled back' "${updater}" >/dev/null
 if grep -Eq 'curl .*(-k|--insecure)' "${updater}"; then
 	echo "lightweight node updater disables TLS verification" >&2
@@ -112,11 +119,25 @@ if grep -Eq 'curl .*(-k|--insecure)' "${updater}"; then
 fi
 
 printf '%s\n' "${service_body}" | grep -Fx 'User=kejilion-node' >/dev/null
+printf '%s\n' "${service_body}" | grep -Fx 'Wants=kejilion-node-terminal.service' >/dev/null
 printf '%s\n' "${service_body}" | grep -Fx 'NoNewPrivileges=true' >/dev/null
 printf '%s\n' "${service_body}" | grep -Fx 'ProtectSystem=strict' >/dev/null
 printf '%s\n' "${service_body}" | grep -Fx 'ProtectHome=true' >/dev/null
 printf '%s\n' "${service_body}" | grep -Fx 'CapabilityBoundingSet=' >/dev/null
 printf '%s\n' "${service_body}" | grep -Fx 'RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6' >/dev/null
+printf '%s\n' "${terminal_service_body}" | grep -Fx 'User=root' >/dev/null
+printf '%s\n' "${terminal_service_body}" | grep -Fx 'Group=root' >/dev/null
+printf '%s\n' "${terminal_service_body}" | grep -Fx 'ConditionPathExists=/etc/kejilion-node/terminal.json' >/dev/null
+printf '%s\n' "${terminal_service_body}" | grep -Fx 'ExecStart=/usr/local/lib/kejilion-node/kejilion-node terminal-broker --config /etc/kejilion-node/node.json --terminal-config /etc/kejilion-node/terminal.json' >/dev/null
+printf '%s\n' "${terminal_service_body}" | grep -Fx 'ProtectSystem=false' >/dev/null
+printf '%s\n' "${terminal_service_body}" | grep -Fx 'ProtectHome=false' >/dev/null
+printf '%s\n' "${terminal_service_body}" | grep -Fx 'PrivateDevices=false' >/dev/null
+printf '%s\n' "${terminal_service_body}" | grep -Fx 'NoNewPrivileges=false' >/dev/null
+printf '%s\n' "${terminal_service_body}" | grep -Fx 'UMask=0077' >/dev/null
+if printf '%s\n' "${terminal_service_body}" | grep -Eq 'Listen(Stream|Datagram)=|ExecStart=.*(sshd|socket)'; then
+	echo "lightweight terminal broker unexpectedly exposes a listener" >&2
+	exit 1
+fi
 printf '%s\n' "${timer_body}" | grep -Fx 'OnUnitActiveSec=24h' >/dev/null
 printf '%s\n' "${timer_body}" | grep -Fx 'RandomizedDelaySec=6h' >/dev/null
 printf '%s\n' "${timer_body}" | grep -Fx 'Persistent=true' >/dev/null
@@ -183,10 +204,13 @@ chmod +x "${systemctl_bin}"
 )
 cat >"${temporary_dir}/expected-systemctl.log" <<'EXPECTED_SYSTEMCTL'
 daemon-reload
+enable kejilion-node-terminal.service
 enable kejilion-node.service
 enable kejilion-node-update.timer
+start kejilion-node-terminal.service
 start kejilion-node.service
 start kejilion-node-update.timer
+is-active kejilion-node-terminal.service
 is-active kejilion-node.service
 EXPECTED_SYSTEMCTL
 cmp "${temporary_dir}/expected-systemctl.log" "${systemctl_log}"
@@ -225,6 +249,7 @@ chmod +x "${join_runtime}/install" "${join_runtime}/systemctl"
 		KPANEL_NODE_UPDATER="${KPANEL_NODE_HOME}/update.sh"
 		KPANEL_NODE_CONFIG_DIR="${KPANEL_TEST_JOIN_ROOT}/config"
 		KPANEL_NODE_CONFIG="${KPANEL_NODE_CONFIG_DIR}/node.json"
+		KPANEL_NODE_TERMINAL_CONFIG="${KPANEL_NODE_CONFIG_DIR}/terminal.json"
 		KPANEL_NODE_SYSTEMCTL="${KPANEL_TEST_JOIN_ROOT}/systemctl"
 	}
 	kpanel_node_preflight() {
