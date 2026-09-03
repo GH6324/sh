@@ -61,6 +61,7 @@ account_body="$(
 )"
 service_body="$(sed -n "/^\[Unit\]$/,/^KPANEL_NODE_SERVICE$/p" "${normalized_script}" | head -n -1)"
 terminal_service_body="$(sed -n "/^Description=KPanel Lightweight Node Root PTY Broker$/,/^KPANEL_NODE_TERMINAL_SERVICE$/p" "${normalized_script}" | head -n -1)"
+ssh_login_service_body="$(sed -n "/^Description=KPanel SSH Login Event Collector$/,/^KPANEL_NODE_SSH_LOGIN_SERVICE$/p" "${normalized_script}" | head -n -1)"
 timer_body="$(sed -n "/^\[Timer\]$/,/^KPANEL_NODE_UPDATE_TIMER$/p" "${normalized_script}" | head -n -1)"
 
 printf '%s\n' "${protocol_body}" | grep -F '[ "${KJ_LIGHT_NODE_PROTOCOL:-}" = "1" ]' >/dev/null
@@ -89,6 +90,8 @@ printf '%s\n' "${join_body}" | grep -F 'chmod 0600 "$KPANEL_NODE_TERMINAL_CONFIG
 grep -F '[ -d /run/systemd/system ]' "${normalized_script}" >/dev/null
 grep -F 'KPANEL_NODE_INSTALL_BIN="$(type -P install 2>/dev/null || true)"' "${normalized_script}" >/dev/null
 grep -F 'KPANEL_NODE_SYSTEMCTL="$(type -P systemctl 2>/dev/null || true)"' "${normalized_script}" >/dev/null
+grep -F 'KPANEL_NODE_SSH_LOGIN_SERVICE="/etc/systemd/system/kejilion-node-ssh-login.service"' "${normalized_script}" >/dev/null
+grep -F 'KPANEL_NODE_SSH_LOGIN_EVENT="${KPANEL_NODE_SSH_LOGIN_RUNTIME}/ssh-login.json"' "${normalized_script}" >/dev/null
 grep -F '"$KPANEL_NODE_INSTALL_BIN" -d -o root -g root' "${normalized_script}" >/dev/null
 if grep -F $'\tinstall -d -o root' "${normalized_script}" >/dev/null; then
 	echo "lightweight node installer is shadowed by the package install helper" >&2
@@ -108,6 +111,9 @@ grep -F -- "--proto '=https' --tlsv1.2" "${updater}" >/dev/null
 grep -F 'SHA256SUMS' "${updater}" >/dev/null
 grep -F 'sha256sum' "${updater}" >/dev/null
 grep -F "grep -Eq '^[^[:space:]]+ light-v1$'" "${updater}" >/dev/null
+version_check_line="$(grep -n 'version_output=' "${updater}" | cut -d: -f1)"
+up_to_date_line="$(grep -n 'already up to date' "${updater}" | cut -d: -f1)"
+test -n "${version_check_line}" -a -n "${up_to_date_line}" -a "${version_check_line}" -lt "${up_to_date_line}"
 if grep -F 'light-terminal-v1' "${normalized_script}" >/dev/null; then
 	echo "lightweight node installer still names the removed terminal protocol" >&2
 	exit 1
@@ -136,6 +142,21 @@ printf '%s\n' "${terminal_service_body}" | grep -Fx 'NoNewPrivileges=false' >/de
 printf '%s\n' "${terminal_service_body}" | grep -Fx 'UMask=0077' >/dev/null
 if printf '%s\n' "${terminal_service_body}" | grep -Eq 'Listen(Stream|Datagram)=|ExecStart=.*(sshd|socket)'; then
 	echo "lightweight terminal broker unexpectedly exposes a listener" >&2
+	exit 1
+fi
+printf '%s\n' "${ssh_login_service_body}" | grep -Fx 'User=root' >/dev/null
+printf '%s\n' "${ssh_login_service_body}" | grep -Fx 'Group=kejilion-node' >/dev/null
+printf '%s\n' "${ssh_login_service_body}" | grep -Fx 'ExecStart=/usr/local/lib/kejilion-node/kejilion-node ssh-login-broker --output /run/kejilion-node-ssh/ssh-login.json' >/dev/null
+printf '%s\n' "${ssh_login_service_body}" | grep -Fx 'RuntimeDirectory=kejilion-node-ssh' >/dev/null
+printf '%s\n' "${ssh_login_service_body}" | grep -Fx 'RuntimeDirectoryMode=0750' >/dev/null
+printf '%s\n' "${ssh_login_service_body}" | grep -Fx 'ProtectSystem=strict' >/dev/null
+printf '%s\n' "${ssh_login_service_body}" | grep -Fx 'ProtectHome=true' >/dev/null
+printf '%s\n' "${ssh_login_service_body}" | grep -Fx 'RestrictAddressFamilies=AF_UNIX' >/dev/null
+printf '%s\n' "${ssh_login_service_body}" | grep -Fx 'CapabilityBoundingSet=CAP_DAC_READ_SEARCH' >/dev/null
+printf '%s\n' "${ssh_login_service_body}" | grep -Fx 'ReadWritePaths=/run/kejilion-node-ssh' >/dev/null
+printf '%s\n' "${ssh_login_service_body}" | grep -Fx 'UMask=0027' >/dev/null
+if printf '%s\n' "${ssh_login_service_body}" | grep -Eq 'Listen(Stream|Datagram)='; then
+	echo "SSH login collector unexpectedly exposes a listener" >&2
 	exit 1
 fi
 printf '%s\n' "${timer_body}" | grep -Fx 'OnUnitActiveSec=24h' >/dev/null
@@ -206,11 +227,14 @@ cat >"${temporary_dir}/expected-systemctl.log" <<'EXPECTED_SYSTEMCTL'
 daemon-reload
 enable kejilion-node-terminal.service
 enable kejilion-node.service
+enable kejilion-node-ssh-login.service
 enable kejilion-node-update.timer
 start kejilion-node-terminal.service
+start kejilion-node-ssh-login.service
 start kejilion-node.service
 start kejilion-node-update.timer
 is-active kejilion-node-terminal.service
+is-active kejilion-node-ssh-login.service
 is-active kejilion-node.service
 EXPECTED_SYSTEMCTL
 cmp "${temporary_dir}/expected-systemctl.log" "${systemctl_log}"
