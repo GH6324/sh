@@ -24,6 +24,10 @@ extract_heredoc "\tcat >\"\$KPANEL_NODE_UPDATER\" <<'KPANEL_NODE_UPDATE'" "KPANE
 test -s "${updater}"
 bash -n "${updater}"
 
+file_service="${temporary_dir}/kejilion-node-file.service"
+extract_heredoc "\tcat >/etc/systemd/system/kejilion-node-file.service <<'KPANEL_NODE_FILE_SERVICE'" "KPANEL_NODE_FILE_SERVICE" "${file_service}"
+test -s "${file_service}"
+
 protocol_body="$(
 	awk '
 		/^kpanel_protocol_active\(\) \{/ { capture=1 }
@@ -159,6 +163,14 @@ if printf '%s\n' "${ssh_login_service_body}" | grep -Eq 'Listen(Stream|Datagram)
 	echo "SSH login collector unexpectedly exposes a listener" >&2
 	exit 1
 fi
+grep -Fx 'User=root' "${file_service}" >/dev/null
+grep -Fx 'Group=root' "${file_service}" >/dev/null
+grep -Fx 'ExecStart=/usr/local/lib/kejilion-node/kejilion-node file-broker --config /etc/kejilion-node/node.json --terminal-config /etc/kejilion-node/terminal.json' "${file_service}" >/dev/null
+grep -Fx 'ConditionPathExists=/etc/kejilion-node/terminal.json' "${file_service}" >/dev/null
+if grep -Eq '^(ProtectSystem|ProtectHome|CapabilityBoundingSet)=' "${file_service}"; then
+	echo "lightweight node file broker is isolated from the filesystem it must manage" >&2
+	exit 1
+fi
 printf '%s\n' "${timer_body}" | grep -Fx 'OnUnitActiveSec=24h' >/dev/null
 printf '%s\n' "${timer_body}" | grep -Fx 'RandomizedDelaySec=6h' >/dev/null
 printf '%s\n' "${timer_body}" | grep -Fx 'Persistent=true' >/dev/null
@@ -220,10 +232,38 @@ chmod +x "${systemctl_bin}"
 (
 	export KPANEL_TEST_SYSTEMCTL_LOG="${systemctl_log}"
 	KPANEL_NODE_SYSTEMCTL="${systemctl_bin}"
+	KPANEL_NODE_TERMINAL_CONFIG="${temporary_dir}/missing-terminal.json"
 	eval "${activate_body}"
 	kpanel_node_activate
 )
 cat >"${temporary_dir}/expected-systemctl.log" <<'EXPECTED_SYSTEMCTL'
+daemon-reload
+disable kejilion-node-terminal.service
+stop kejilion-node-terminal.service
+enable kejilion-node.service
+enable kejilion-node-ssh-login.service
+enable kejilion-node-update.timer
+start kejilion-node-ssh-login.service
+start kejilion-node.service
+start kejilion-node-update.timer
+disable kejilion-node-file.service
+stop kejilion-node-file.service
+is-active kejilion-node-ssh-login.service
+is-active kejilion-node.service
+EXPECTED_SYSTEMCTL
+cmp "${temporary_dir}/expected-systemctl.log" "${systemctl_log}"
+
+capable_systemctl_log="${temporary_dir}/capable-systemctl.log"
+capable_terminal_config="${temporary_dir}/terminal.json"
+touch "${capable_terminal_config}"
+(
+	export KPANEL_TEST_SYSTEMCTL_LOG="${capable_systemctl_log}"
+	KPANEL_NODE_SYSTEMCTL="${systemctl_bin}"
+	KPANEL_NODE_TERMINAL_CONFIG="${capable_terminal_config}"
+	eval "${activate_body}"
+	kpanel_node_activate
+)
+cat >"${temporary_dir}/expected-capable-systemctl.log" <<'EXPECTED_CAPABLE_SYSTEMCTL'
 daemon-reload
 enable kejilion-node-terminal.service
 enable kejilion-node.service
@@ -234,10 +274,13 @@ start kejilion-node-ssh-login.service
 start kejilion-node.service
 start kejilion-node-update.timer
 is-active kejilion-node-terminal.service
+enable kejilion-node-file.service
+start kejilion-node-file.service
+is-active kejilion-node-file.service
 is-active kejilion-node-ssh-login.service
 is-active kejilion-node.service
-EXPECTED_SYSTEMCTL
-cmp "${temporary_dir}/expected-systemctl.log" "${systemctl_log}"
+EXPECTED_CAPABLE_SYSTEMCTL
+cmp "${temporary_dir}/expected-capable-systemctl.log" "${capable_systemctl_log}"
 
 sanitized_name="$(printf '%s' 'edge_node-01 bad@name' | LC_ALL=C tr -cd '[:alnum:]_. -')"
 test "${sanitized_name}" = 'edge_node-01 badname'
