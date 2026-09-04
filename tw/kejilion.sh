@@ -10679,6 +10679,7 @@ kpanel_node_paths() {
 	KPANEL_NODE_HOME="/usr/local/lib/kejilion-node"
 	KPANEL_NODE_BINARY="${KPANEL_NODE_HOME}/kejilion-node"
 	KPANEL_NODE_UPDATER="${KPANEL_NODE_HOME}/update.sh"
+	KPANEL_NODE_FILE_SERVICE="kejilion-node-file.service"
 	KPANEL_NODE_CONFIG_DIR="/etc/kejilion-node"
 	KPANEL_NODE_CONFIG="${KPANEL_NODE_CONFIG_DIR}/node.json"
 	KPANEL_NODE_TERMINAL_CONFIG="${KPANEL_NODE_CONFIG_DIR}/terminal.json"
@@ -10785,8 +10786,52 @@ esac
 home_dir="/usr/local/lib/kejilion-node"
 binary_name="kejilion-node-linux-${arch}"
 binary_path="${home_dir}/kejilion-node"
+file_service="kejilion-node-file.service"
+file_service_path="/etc/systemd/system/${file_service}"
 base_url="https://github.com/kejilion/KPanel/releases/latest/download"
 lock_dir="/run/lock/kejilion-node-update.lock"
+
+ensure_file_service_unit() {
+	if [ -e "$file_service_path" ]; then
+		[ -f "$file_service_path" ] || return 1
+		return 0
+	fi
+	cat >"$file_service_path" <<'KPANEL_NODE_FILE_SERVICE'
+[Unit]
+Description=KPanel Lightweight Node File Manager
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/kejilion-node/node.json
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/
+ExecStart=/usr/local/lib/kejilion-node/kejilion-node file-broker --config /etc/kejilion-node/node.json --terminal-config /etc/kejilion-node/terminal.json
+Restart=on-failure
+RestartSec=15s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
+KPANEL_NODE_FILE_SERVICE
+	chmod 0644 "$file_service_path"
+	systemctl daemon-reload
+}
 
 if ! mkdir "$lock_dir" 2>/dev/null; then
 	echo "another KPanel lightweight node update is running" >&2
@@ -10823,6 +10868,15 @@ printf '%s\n' "$version_output" | grep -Eq '^[^[:space:]]+ light-v1$' || {
 	exit 1
 }
 
+if [ "$mode" = "update" ] && [ -f /etc/kejilion-node/node.json ]; then
+	if ! ensure_file_service_unit; then
+		echo "KPanel lightweight node file service unit is invalid" >&2
+		exit 1
+	fi
+	systemctl enable "$file_service" >/dev/null 2>&1 || true
+	systemctl restart "$file_service" >/dev/null 2>&1 || true
+fi
+
 if [ -f "$binary_path" ] && [ "$(sha256sum "$binary_path" | awk '{print $1}')" = "$actual" ]; then
 	echo "KPanel lightweight node is already up to date."
 	exit 0
@@ -10841,8 +10895,8 @@ restart_services() {
 		systemctl restart kejilion-node-terminal.service
 	fi
 	systemctl restart kejilion-node.service
-	if [ -f /etc/kejilion-node/terminal.json ] && systemctl cat kejilion-node-file.service >/dev/null 2>&1; then
-		systemctl restart kejilion-node-file.service
+	if systemctl cat "$file_service" >/dev/null 2>&1; then
+		systemctl restart "$file_service"
 	fi
 }
 services_active() {
@@ -10850,8 +10904,8 @@ services_active() {
 		systemctl is-active --quiet kejilion-node-terminal.service || return 1
 	fi
 	systemctl is-active --quiet kejilion-node.service || return 1
-	if [ -f /etc/kejilion-node/terminal.json ] && systemctl cat kejilion-node-file.service >/dev/null 2>&1; then
-		systemctl is-active --quiet kejilion-node-file.service || return 1
+	if systemctl cat "$file_service" >/dev/null 2>&1; then
+		systemctl is-active --quiet "$file_service" || return 1
 	fi
 }
 
@@ -10954,7 +11008,6 @@ Description=KPanel Lightweight Node File Manager
 After=network-online.target
 Wants=network-online.target
 ConditionPathExists=/etc/kejilion-node/node.json
-ConditionPathExists=/etc/kejilion-node/terminal.json
 
 [Service]
 Type=simple
@@ -10975,7 +11028,7 @@ LockPersonality=true
 MemoryDenyWriteExecute=true
 RestrictRealtime=true
 RestrictNamespaces=true
-RestrictAddressFamilies=AF_UNIX
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 SystemCallArchitectures=native
 UMask=0077
 
@@ -11058,14 +11111,8 @@ kpanel_node_activate() {
 	if [ -f "$KPANEL_NODE_TERMINAL_CONFIG" ] && ! "$KPANEL_NODE_SYSTEMCTL" is-active kejilion-node-terminal.service >/dev/null; then
 		echo "KPanel 輕量節點終端 broker 目前不可用；檔案管理和遙測服務仍在執行。" >&2
 	fi
-	if [ -f "$KPANEL_NODE_TERMINAL_CONFIG" ]; then
-		"$KPANEL_NODE_SYSTEMCTL" enable kejilion-node-file.service || return 1
-		"$KPANEL_NODE_SYSTEMCTL" start kejilion-node-file.service || return 1
-		"$KPANEL_NODE_SYSTEMCTL" is-active kejilion-node-file.service >/dev/null || return 1
-	else
-		"$KPANEL_NODE_SYSTEMCTL" disable kejilion-node-file.service >/dev/null 2>&1 || true
-		"$KPANEL_NODE_SYSTEMCTL" stop kejilion-node-file.service >/dev/null 2>&1 || true
-	fi
+	"$KPANEL_NODE_SYSTEMCTL" enable "$KPANEL_NODE_FILE_SERVICE" || return 1
+	{ "$KPANEL_NODE_SYSTEMCTL" start "$KPANEL_NODE_FILE_SERVICE" >/dev/null 2>&1 || true; }
 	"$KPANEL_NODE_SYSTEMCTL" is-active kejilion-node.service >/dev/null
 }
 

@@ -115,6 +115,8 @@ grep -F -- "--proto '=https' --tlsv1.2" "${updater}" >/dev/null
 grep -F 'SHA256SUMS' "${updater}" >/dev/null
 grep -F 'sha256sum' "${updater}" >/dev/null
 grep -F "grep -Eq '^[^[:space:]]+ light-v1$'" "${updater}" >/dev/null
+grep -F 'ensure_file_service_unit' "${updater}" >/dev/null
+grep -F 'systemctl enable "$file_service"' "${updater}" >/dev/null
 version_check_line="$(grep -n 'version_output=' "${updater}" | cut -d: -f1)"
 up_to_date_line="$(grep -n 'already up to date' "${updater}" | cut -d: -f1)"
 test -n "${version_check_line}" -a -n "${up_to_date_line}" -a "${version_check_line}" -lt "${up_to_date_line}"
@@ -166,7 +168,12 @@ fi
 grep -Fx 'User=root' "${file_service}" >/dev/null
 grep -Fx 'Group=root' "${file_service}" >/dev/null
 grep -Fx 'ExecStart=/usr/local/lib/kejilion-node/kejilion-node file-broker --config /etc/kejilion-node/node.json --terminal-config /etc/kejilion-node/terminal.json' "${file_service}" >/dev/null
-grep -Fx 'ConditionPathExists=/etc/kejilion-node/terminal.json' "${file_service}" >/dev/null
+grep -Fx 'ConditionPathExists=/etc/kejilion-node/node.json' "${file_service}" >/dev/null
+if grep -Fx 'ConditionPathExists=/etc/kejilion-node/terminal.json' "${file_service}" >/dev/null; then
+	echo "lightweight node file broker still waits for terminal enrollment" >&2
+	exit 1
+fi
+grep -Fx 'RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6' "${file_service}" >/dev/null
 if grep -Eq '^(ProtectSystem|ProtectHome|CapabilityBoundingSet)=' "${file_service}"; then
 	echo "lightweight node file broker is isolated from the filesystem it must manage" >&2
 	exit 1
@@ -232,6 +239,7 @@ chmod +x "${systemctl_bin}"
 (
 	export KPANEL_TEST_SYSTEMCTL_LOG="${systemctl_log}"
 	KPANEL_NODE_SYSTEMCTL="${systemctl_bin}"
+	KPANEL_NODE_FILE_SERVICE="kejilion-node-file.service"
 	KPANEL_NODE_TERMINAL_CONFIG="${temporary_dir}/missing-terminal.json"
 	eval "${activate_body}"
 	kpanel_node_activate
@@ -246,8 +254,8 @@ enable kejilion-node-update.timer
 start kejilion-node-ssh-login.service
 start kejilion-node.service
 start kejilion-node-update.timer
-disable kejilion-node-file.service
-stop kejilion-node-file.service
+enable kejilion-node-file.service
+start kejilion-node-file.service
 is-active kejilion-node-ssh-login.service
 is-active kejilion-node.service
 EXPECTED_SYSTEMCTL
@@ -259,6 +267,7 @@ touch "${capable_terminal_config}"
 (
 	export KPANEL_TEST_SYSTEMCTL_LOG="${capable_systemctl_log}"
 	KPANEL_NODE_SYSTEMCTL="${systemctl_bin}"
+	KPANEL_NODE_FILE_SERVICE="kejilion-node-file.service"
 	KPANEL_NODE_TERMINAL_CONFIG="${capable_terminal_config}"
 	eval "${activate_body}"
 	kpanel_node_activate
@@ -276,7 +285,6 @@ start kejilion-node-update.timer
 is-active kejilion-node-terminal.service
 enable kejilion-node-file.service
 start kejilion-node-file.service
-is-active kejilion-node-file.service
 is-active kejilion-node-ssh-login.service
 is-active kejilion-node.service
 EXPECTED_CAPABLE_SYSTEMCTL
@@ -317,6 +325,7 @@ chmod +x "${join_runtime}/install" "${join_runtime}/systemctl"
 		KPANEL_NODE_CONFIG_DIR="${KPANEL_TEST_JOIN_ROOT}/config"
 		KPANEL_NODE_CONFIG="${KPANEL_NODE_CONFIG_DIR}/node.json"
 		KPANEL_NODE_TERMINAL_CONFIG="${KPANEL_NODE_CONFIG_DIR}/terminal.json"
+		KPANEL_NODE_FILE_SERVICE="kejilion-node-file.service"
 		KPANEL_NODE_SYSTEMCTL="${KPANEL_TEST_JOIN_ROOT}/systemctl"
 	}
 	kpanel_node_preflight() {
