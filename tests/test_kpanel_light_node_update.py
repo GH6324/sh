@@ -17,6 +17,7 @@ import unittest
 
 SOURCE = Path(os.environ.get('SCRIPT_PATH', Path(__file__).resolve().parents[1] / 'kejilion.sh')).read_text()
 UPDATER = SOURCE.split("<<'KPANEL_NODE_UPDATE'\n", 1)[1].split('\nKPANEL_NODE_UPDATE\n', 1)[0]
+FILE_UNIT = UPDATER.split("<<'KPANEL_NODE_FILE_SERVICE'\n", 1)[1].split('\nKPANEL_NODE_FILE_SERVICE\n', 1)[0] + '\n'
 
 CURL = r'''#!/usr/bin/python3
 import json,os,pathlib,shutil,sys
@@ -145,6 +146,33 @@ class NodeUpdater(unittest.TestCase):
         self.run_update()
         self.assertEqual(config.stat().st_gid, 65534)
         self.assertEqual(config.stat().st_mode & 0o777, 0o640)
+
+    def test_known_legacy_file_unit_is_repaired_and_current_broker_restarts(self):
+        (self.root / 'optional').touch()
+        self.run_update()
+        unit = self.root / 'units/kejilion-node-file.service'
+        current = unit.read_text()
+        legacy = current.replace('RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6', 'RestrictAddressFamilies=AF_UNIX')
+        self.assertNotEqual(current, legacy)
+        unit.write_text(legacy)
+        old_pid = (self.root / 'kejilion-node-file.service.pid').read_text()
+        self.run_update()
+        self.assertEqual(unit.read_text(), current)
+        self.assertNotEqual((self.root / 'kejilion-node-file.service.pid').read_text(), old_pid)
+
+    def test_custom_and_symlink_file_units_are_preserved(self):
+        unit = self.root / 'units/kejilion-node-file.service'
+        custom = '[Service]\nExecStart=/custom/broker\nRestrictAddressFamilies=AF_UNIX\n'
+        unit.write_text(custom)
+        self.run_update()
+        self.assertEqual(unit.read_text(), custom)
+        unit.unlink()
+        target = self.root / 'private-unit'
+        target.write_text(custom)
+        unit.symlink_to(target)
+        self.run_update()
+        self.assertTrue(unit.is_symlink())
+        self.assertEqual(target.read_text(), custom)
 
     def test_bad_checksum_and_network_failure_preserve_binary_then_retry_recovers(self):
         before = self.binary.read_bytes()
