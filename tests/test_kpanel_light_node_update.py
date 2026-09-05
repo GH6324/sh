@@ -18,6 +18,8 @@ import unittest
 SOURCE = Path(os.environ.get('SCRIPT_PATH', Path(__file__).resolve().parents[1] / 'kejilion.sh')).read_text()
 UPDATER = SOURCE.split("<<'KPANEL_NODE_UPDATE'\n", 1)[1].split('\nKPANEL_NODE_UPDATE\n', 1)[0]
 FILE_UNIT = UPDATER.split("<<'KPANEL_NODE_FILE_SERVICE'\n", 1)[1].split('\nKPANEL_NODE_FILE_SERVICE\n', 1)[0] + '\n'
+# Verbatim installer-owned unit from kejilion/sh@2ee9856c9916b7ede8bbc19edc97e22872e86203.
+LEGACY_FILE_UNIT = (Path(__file__).resolve().parent / 'fixtures/kpanel-node-file-2ee9856.service').read_text()
 
 CURL = r'''#!/usr/bin/python3
 import json,os,pathlib,shutil,sys
@@ -173,6 +175,23 @@ class NodeUpdater(unittest.TestCase):
         self.run_update()
         self.assertTrue(unit.is_symlink())
         self.assertEqual(target.read_text(), custom)
+
+    def test_original_historical_file_unit_migrates_but_custom_variant_is_preserved(self):
+        self.assertEqual(hashlib.sha256(LEGACY_FILE_UNIT.encode()).hexdigest(), 'b92a708103771a8e1334b74acc44c1c7299b8339f8ca36884e1084e86642f92d')
+        (self.root / 'optional').touch()
+        self.run_update()
+        unit = self.root / 'units/kejilion-node-file.service'
+        current = unit.read_text()
+        legacy = LEGACY_FILE_UNIT.replace('/usr/local/lib/kejilion-node', str(self.root / 'home')).replace('/etc/kejilion-node', str(self.root / 'config'))
+        unit.write_text(legacy)
+        old_pid = (self.root / 'kejilion-node-file.service.pid').read_text()
+        self.run_update()
+        self.assertEqual(unit.read_text(), current)
+        self.assertNotEqual((self.root / 'kejilion-node-file.service.pid').read_text(), old_pid)
+        custom = legacy.replace('RestartSec=15s', 'RestartSec=30s')
+        unit.write_text(custom)
+        self.run_update()
+        self.assertEqual(unit.read_text(), custom)
 
     def test_bad_checksum_and_network_failure_preserve_binary_then_retry_recovers(self):
         before = self.binary.read_bytes()
