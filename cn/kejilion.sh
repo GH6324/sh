@@ -11051,12 +11051,102 @@ kpanel_node_ensure_account() {
 	}
 }
 
+kpanel_node_lock_template() {
+	cat <<'KPANEL_NODE_LIFECYCLE'
+# Shared by the installer and its generated updater. Keep the inode outside
+# the removable installation; unlinking a held flock creates two lock owners.
+kpanel_node_release_lock() {
+	[ "${kpanel_legacy_lock_owned:-false}" != true ] || rmdir -- /run/lock/kejilion-node-update.lock 2>/dev/null || true
+}
+kpanel_node_acquire_lock() {
+	local lifecycle_lock=/run/kejilion-node-lifecycle.lock
+	local home=/usr/local/lib/kejilion-node legacy_lock=/run/lock/kejilion-node-update.lock
+	local legacy_marker="${home}/legacy-update.pid" legacy_pid legacy_start process argument script_file
+	kpanel_legacy_lock_owned=false
+	[ ! -L "$lifecycle_lock" ] && { [ ! -e "$lifecycle_lock" ] || [ -f "$lifecycle_lock" ]; } || return 1
+	[ ! -e "$lifecycle_lock" ] || [ "$(stat -c '%u' "$lifecycle_lock")" = 0 ] || return 1
+	# The installer passes the same open-file description to its child updater.
+	# Do not trust an environment flag as proof of lock ownership.
+	if [ /proc/self/fd/8 -ef "$lifecycle_lock" ] && flock -n 8; then
+		return 0
+	fi
+	local previous_umask="$(umask)"
+	umask 077
+	exec 8>>"$lifecycle_lock" || { umask "$previous_umask"; return 1; }
+	umask "$previous_umask"
+	if ! flock -n 8; then
+		echo "another KPanel lightweight node lifecycle operation is running; retry when it finishes" >&2
+		return 1
+	fi
+	chmod 0600 "$lifecycle_lock" || return 1
+	# Bridge the previous flock updater before inspecting its PID marker. Keep
+	# this descriptor open through enrollment, activation and uninstall as well.
+	if [ -d "$home" ]; then
+		[ ! -L "$home" ] && [ ! -L "${home}/update.lock" ] || return 1
+		exec 9>>"${home}/update.lock" || return 1
+		if ! flock -n 9; then
+			echo "another KPanel lightweight node update is running" >&2
+			return 1
+		fi
+	fi
+	if [ -e "$legacy_marker" ] || [ -L "$legacy_marker" ]; then
+		if [ -L "$legacy_marker" ] || [ ! -f "$legacy_marker" ] ||
+			! read -r legacy_pid legacy_start <"$legacy_marker" ||
+			! [[ "$legacy_pid" =~ ^[1-9][0-9]*$ && "$legacy_start" =~ ^[0-9]+$ ]]; then
+			echo "KPanel legacy updater identity is invalid; inspect ${legacy_marker} first" >&2
+			return 1
+		fi
+		if [ "$(awk '{ sub(/^.*\) /, ""); print $20 }' "/proc/${legacy_pid}/stat" 2>/dev/null || true)" = "$legacy_start" ]; then
+			echo "previous KPanel lightweight node updater is still finishing" >&2
+			return 1
+		fi
+	fi
+	if ! mkdir -- "$legacy_lock" 2>/dev/null; then
+		[ ! -L "$legacy_lock" ] && [ -d "$legacy_lock" ] && [ -r /proc/self/stat ] || return 1
+		[ "$(stat -c '%u' "$legacy_lock")" = 0 ] || return 1
+		for process in /proc/[0-9]*; do
+			[ "${process##*/}" != "$BASHPID" ] || continue
+			script_file="$(readlink "${process}/fd/255" 2>/dev/null || true)"
+			if [ "${script_file% (deleted)}" = "${home}/update.sh" ]; then
+				echo "legacy KPanel update lock is still in use" >&2; return 1
+			fi
+			if [ ! -r "${process}/cmdline" ]; then
+				[ ! -d "$process" ] && continue
+				return 1
+			fi
+			while IFS= read -r -d '' argument; do
+				if [ "$argument" = "${home}/update.sh" ]; then
+					echo "legacy KPanel update lock is still in use" >&2; return 1
+				fi
+			done <"${process}/cmdline" || return 1
+		done
+		# Never recursively remove unknown contents or a competing old owner.
+		rmdir -- "$legacy_lock" && mkdir -- "$legacy_lock" || return 1
+		echo "Recovered an inactive KPanel lightweight node update lock."
+	fi
+	kpanel_legacy_lock_owned=true
+	trap kpanel_node_release_lock EXIT
+	trap 'echo "KPanel lightweight node update interrupted; run the command again to retry." >&2; exit 130' INT
+	trap 'exit 143' HUP TERM
+	rm -f -- "$legacy_marker"
+}
+KPANEL_NODE_LIFECYCLE
+}
+
+kpanel_node_lock() {
+	# Only source the fixed template above, never an installed/remote helper.
+	source <(kpanel_node_lock_template)
+	kpanel_node_acquire_lock
+}
+
 kpanel_node_write_updater() {
 	"$KPANEL_NODE_INSTALL_BIN" -d -o root -g root -m 0755 "$KPANEL_NODE_HOME" || return 1
 	local updater_temporary
 	updater_temporary="$(mktemp "${KPANEL_NODE_HOME}/.update.sh.XXXXXX")" || return 1
-	cat >"$updater_temporary" <<'KPANEL_NODE_UPDATE'
-#!/bin/bash
+	printf '#!/bin/bash\n' >"$updater_temporary" || return 1
+	kpanel_node_lock_template >>"$updater_temporary" || return 1
+	cat >>"$updater_temporary" <<'KPANEL_NODE_UPDATE'
+# KPANEL_NODE_RUNTIME_GENERATION=2
 set -euo pipefail
 
 mode="${1:-update}"
@@ -11077,71 +11167,20 @@ binary_path="${home_dir}/kejilion-node"
 # GitHub URLs and hide the redirects that bind the checksum to one release.
 github_host="github.com"
 base_url="https://${github_host}/kejilion/KPanel/releases/latest/download"
-legacy_lock="/run/lock/kejilion-node-update.lock"
-legacy_marker="${home_dir}/legacy-update.pid"
-legacy_lock_owned=false
 temporary_dir=""
 
-# flock recovers after SIGKILL; the directory also excludes old mkdir updaters.
-exec 9>"${home_dir}/update.lock"
-if ! flock -n 9; then
-	echo "another KPanel lightweight node update is running" >&2
-	exit 1
-fi
+kpanel_node_acquire_lock || exit 1
 cleanup() {
 	[ -z "$temporary_dir" ] || rm -rf -- "$temporary_dir"
-	[ "$legacy_lock_owned" != true ] || rmdir -- "$legacy_lock" 2>/dev/null || true
+	kpanel_node_release_lock
 }
 trap cleanup EXIT
 trap 'echo "KPanel lightweight node update interrupted; run the command again to retry." >&2; exit 130' INT
 trap 'exit 143' HUP TERM
 
-if [ -e "$legacy_marker" ] || [ -L "$legacy_marker" ]; then
-	if [ -L "$legacy_marker" ] || [ ! -f "$legacy_marker" ] ||
-		! read -r legacy_pid legacy_start <"$legacy_marker" ||
-		! [[ "$legacy_pid" =~ ^[1-9][0-9]*$ && "$legacy_start" =~ ^[0-9]+$ ]]; then
-		echo "KPanel legacy updater identity is invalid; inspect ${legacy_marker} first" >&2
-		exit 1
-	fi
-	if [ "$(awk '{ sub(/^.*\) /, ""); print $20 }' "/proc/${legacy_pid}/stat" 2>/dev/null || true)" = "$legacy_start" ]; then
-		echo "previous KPanel lightweight node updater is still finishing" >&2
-		exit 1
-	fi
-fi
-legacy_updater_idle() {
-	local process argument script_file
-	[ -r /proc/self/stat ] || return 1
-	for process in /proc/[0-9]*; do
-		[ "${process##*/}" != "$$" ] || continue
-		# Bash keeps the running script open after an atomic replacement.
-		script_file="$(readlink "${process}/fd/255" 2>/dev/null || true)"
-		[ "${script_file% (deleted)}" != "${home_dir}/update.sh" ] || return 1
-		if [ ! -r "${process}/cmdline" ]; then
-			[ ! -d "$process" ] && continue
-			return 1
-		fi
-		while IFS= read -r -d '' argument; do
-			[ "$argument" != "${home_dir}/update.sh" ] || return 1
-		done <"${process}/cmdline" || return 1
-	done
-}
-
-if ! mkdir -- "$legacy_lock" 2>/dev/null; then
-	if [ -L "$legacy_lock" ] || [ ! -d "$legacy_lock" ] || ! legacy_updater_idle; then
-		echo "legacy KPanel update lock is still in use or cannot be verified; retry after the previous update finishes" >&2
-		exit 1
-	fi
-	# Never recursively delete an unknown lock. If an old updater wins mkdir
-	# after rmdir, leave its lock untouched and let the caller retry.
-	if ! rmdir -- "$legacy_lock" || ! mkdir -- "$legacy_lock"; then
-		echo "KPanel legacy update lock could not be recovered; inspect ${legacy_lock} first" >&2
-		exit 1
-	fi
-	echo "Recovered an inactive KPanel lightweight node update lock."
-fi
-legacy_lock_owned=true
-rm -f -- "$legacy_marker"
-temporary_dir="$(mktemp -d /tmp/kejilion-node-update.XXXXXX)"
+# Old release assets only migrate in kejilion-node-update.*. The new staging
+# namespace prevents their `version` probe from restoring an obsolete updater.
+temporary_dir="$(mktemp -d /tmp/kejilion-node-release.XXXXXX)"
 
 curl_progress=(--silent --show-error)
 [ ! -t 2 ] || curl_progress=(--progress-bar --show-error)
@@ -11598,6 +11637,7 @@ kpanel_node_activate() {
 }
 
 kpanel_node_join() {
+	(
 	local token="${1:-}" node_name resume_enrollment=false
 	kpanel_node_paths
 	kpanel_node_preflight || return 1
@@ -11609,6 +11649,7 @@ kpanel_node_join() {
 		echo "轻量节点接入授权无效。" >&2
 		return 2
 	}
+	kpanel_node_lock || return 1
 	if [ -e "$KPANEL_NODE_CONFIG" ]; then
 		if [ -f "$KPANEL_NODE_CONFIG" ] && [ ! -L "$KPANEL_NODE_CONFIG" ] && [ -x "$KPANEL_NODE_BINARY" ]; then
 			resume_enrollment=true
@@ -11655,6 +11696,7 @@ kpanel_node_join() {
 		return 1
 	fi
 	echo "KPanel 轻量节点已接入，后续将自动更新。"
+	)
 }
 
 kpanel_node_status() {
@@ -11671,8 +11713,10 @@ kpanel_node_status() {
 }
 
 kpanel_node_update() {
+	(
 	kpanel_node_paths
 	kpanel_node_preflight || return 1
+	kpanel_node_lock || return 1
 	[ -x "$KPANEL_NODE_UPDATER" ] || {
 		echo "KPanel 轻量节点未安装。" >&2
 		return 1
@@ -11681,14 +11725,17 @@ kpanel_node_update() {
 	"$KPANEL_NODE_UPDATER" update || return 1
 	kpanel_node_write_units || return 1
 	kpanel_node_activate || return 1
+	)
 }
 
 kpanel_node_uninstall() {
+	(
 	kpanel_node_paths
 	[ "$(id -u)" = "0" ] || {
 		echo "卸载 KPanel 轻量节点需要 root 权限。" >&2
 		return 1
 	}
+	kpanel_node_lock || return 1
 	if [ -x "$KPANEL_NODE_SYSTEMCTL" ]; then
 		"$KPANEL_NODE_SYSTEMCTL" stop kejilion-node.service >/dev/null 2>&1 || true
 		"$KPANEL_NODE_SYSTEMCTL" stop kejilion-node-terminal.service >/dev/null 2>&1 || true
@@ -11711,6 +11758,7 @@ kpanel_node_uninstall() {
 	rmdir -- "$KPANEL_NODE_SSH_LOGIN_RUNTIME" 2>/dev/null || true
 	[ ! -x "$KPANEL_NODE_SYSTEMCTL" ] || "$KPANEL_NODE_SYSTEMCTL" daemon-reload >/dev/null 2>&1 || true
 	echo "KPanel 轻量节点已从本机卸载；中心端的离线记录需在集群页面删除。"
+	)
 }
 
 kpanel_node_dispatch() {

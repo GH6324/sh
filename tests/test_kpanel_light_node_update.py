@@ -17,7 +17,8 @@ import time
 import unittest
 
 SOURCE = Path(os.environ.get('SCRIPT_PATH', Path(__file__).resolve().parents[1] / 'kejilion.sh')).read_text()
-UPDATER = SOURCE.split("<<'KPANEL_NODE_UPDATE'\n", 1)[1].split('\nKPANEL_NODE_UPDATE\n', 1)[0]
+LOCK_TEMPLATE = SOURCE.split("<<'KPANEL_NODE_LIFECYCLE'\n", 1)[1].split('\nKPANEL_NODE_LIFECYCLE\n', 1)[0]
+UPDATER = '#!/bin/bash\n' + LOCK_TEMPLATE + '\n' + SOURCE.split("<<'KPANEL_NODE_UPDATE'\n", 1)[1].split('\nKPANEL_NODE_UPDATE\n', 1)[0]
 FILE_UNIT = UPDATER.split("<<'KPANEL_NODE_FILE_SERVICE'\n", 1)[1].split('\nKPANEL_NODE_FILE_SERVICE\n', 1)[0] + '\n'
 # Verbatim installer-owned unit from kejilion/sh@2ee9856c9916b7ede8bbc19edc97e22872e86203.
 LEGACY_FILE_UNIT = (Path(__file__).resolve().parent / 'fixtures/kpanel-node-file-2ee9856.service').read_text()
@@ -107,9 +108,100 @@ class NodeUpdater(unittest.TestCase):
         for name, content in [('curl', CURL), ('systemctl', SYSTEMCTL), ('id', '#!/bin/sh\ncase "$1" in -g) echo 65534;; -gn) echo kejilion-node;; *) /usr/bin/id "$@";; esac\n')]:
             (self.root / 'bin' / name).write_text(content)
             (self.root / 'bin' / name).chmod(0o755)
-        script = UPDATER.replace('/usr/local/lib/kejilion-node', str(self.root / 'home')).replace('/etc/kejilion-node', str(self.root / 'config')).replace('/etc/systemd/system', str(self.root / 'units')).replace('/run/lock/kejilion-node-update.lock', str(self.root / 'legacy.lock'))
+        script = self.isolate_paths(UPDATER)
         (self.root / 'update.sh').write_text(script)
         self.env = {**os.environ, 'NODE_TEST_ROOT': str(self.root), 'PATH': str(self.root / 'bin') + ':' + os.environ['PATH']}
+
+    def isolate_paths(self, script):
+        return script.replace('/usr/local/lib/kejilion-node', str(self.root / 'home')).replace('/etc/kejilion-node', str(self.root / 'config')).replace('/etc/systemd/system', str(self.root / 'units')).replace('/run/lock/kejilion-node-update.lock', str(self.root / 'legacy.lock')).replace('/run/kejilion-node-lifecycle.lock', str(self.root / 'lifecycle.lock'))
+
+    def test_inherited_installer_lock_spans_child_update_and_home_removal(self):
+        # The child must use the same lock, but may not release the parent's
+        # legacy bridge. Removing/recreating HOME must not create a second lock.
+        wrapper = self.root / 'installer.sh'
+        wrapper.write_text(self.isolate_paths(LOCK_TEMPLATE) + r'''
+set -euo pipefail
+kpanel_node_acquire_lock
+bash "$NODE_TEST_ROOT/update.sh" install
+test -d "$NODE_TEST_ROOT/legacy.lock"
+rm -r "$NODE_TEST_ROOT/home"
+mkdir "$NODE_TEST_ROOT/home"
+touch "$NODE_TEST_ROOT/installer-waiting"
+while [ ! -f "$NODE_TEST_ROOT/finish-installer" ]; do sleep 0.02; done
+''')
+        process = subprocess.Popen(['/bin/bash', str(wrapper)], env=self.env, cwd=self.root,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, start_new_session=True)
+        try:
+            for _ in range(200):
+                if (self.root / 'installer-waiting').exists() or process.poll() is not None: break
+                time.sleep(0.02)
+            self.assertTrue((self.root / 'installer-waiting').exists())
+            inode = (self.root / 'lifecycle.lock').stat().st_ino
+            self.assertIn('lifecycle operation', self.run_update(False).stderr)
+            self.assertEqual((self.root / 'lifecycle.lock').stat().st_ino, inode)
+            self.assertTrue((self.root / 'legacy.lock').is_dir())
+            (self.root / 'finish-installer').touch()
+            _, errors = process.communicate(timeout=5)
+            self.assertEqual(process.returncode, 0, errors)
+            self.assertFalse((self.root / 'legacy.lock').exists())
+            self.run_update(mode='install')
+        finally:
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.communicate()
+
+    def test_real_join_control_flow_excludes_join_update_and_uninstall_until_activation(self):
+        # Execute the actual lifecycle functions, not a simulated lock caller.
+        # Only account creation, service activation and release/network endpoints
+        # are fixtures; every filesystem path belongs to this TemporaryDirectory.
+        lifecycle = SOURCE.split('kpanel_node_paths() {', 1)[1].split('\nkpanel_node_dispatch() {', 1)[0]
+        lifecycle = self.isolate_paths('kpanel_node_paths() {' + lifecycle).replace('/run/kejilion-node-ssh', str(self.root / 'ssh-runtime'))
+        wrapper = self.root / 'lifecycle.sh'
+        wrapper.write_text(lifecycle + r'''
+kpanel_node_preflight() { KPANEL_NODE_INSTALL_BIN="$(type -P install)"; }
+kpanel_node_ensure_account() { :; }
+kpanel_node_write_units() { :; }
+kpanel_node_activate() {
+    touch "$NODE_TEST_ROOT/activation-waiting"
+    while [ ! -f "$NODE_TEST_ROOT/finish-activation" ]; do sleep 0.02; done
+}
+chown() { command chown "${1/kejilion-node/65534}" "${@:2}"; }
+"kpanel_node_$1" kpl1.test-token
+''')
+        # Installer uses install -g; numeric group retains the real permission test.
+        install = self.root / 'bin/install'
+        install.write_text('#!/bin/bash\nargs=("$@"); for i in "${!args[@]}"; do [ "${args[$i]}" != kejilion-node ] || args[$i]=65534; done\nexec /usr/bin/install "${args[@]}"\n')
+        install.chmod(0o755)
+        config = self.root / 'config/node.json'
+        config.unlink()
+        (self.root / 'enroll').write_text('echo enrolled >>"$NODE_TEST_ROOT/enroll.log"\nprintf \'{"schemaVersion":1}\\n\' >"$NODE_TEST_ROOT/config/node.json"\n')
+        process = subprocess.Popen(['/bin/bash', str(wrapper), 'join'], cwd=self.root, env=self.env,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, start_new_session=True)
+        try:
+            for _ in range(300):
+                if (self.root / 'activation-waiting').exists() or process.poll() is not None: break
+                time.sleep(0.02)
+            self.assertTrue((self.root / 'activation-waiting').exists())
+            identity = config.read_bytes()
+            for action in ('join', 'update', 'uninstall'):
+                result = subprocess.run(['/bin/bash', str(wrapper), action], cwd=self.root, env=self.env,
+                                        capture_output=True, text=True, timeout=10)
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn('lifecycle operation', result.stderr)
+                self.assertEqual(config.read_bytes(), identity)
+            self.assertEqual((self.root / 'enroll.log').read_text().splitlines(), ['enrolled'])
+            (self.root / 'finish-activation').touch()
+            _, errors = process.communicate(timeout=5)
+            self.assertEqual(process.returncode, 0, errors)
+            # An ordinary retry resumes the saved identity without re-enrollment.
+            result = subprocess.run(['/bin/bash', str(wrapper), 'join'], cwd=self.root, env=self.env,
+                                    capture_output=True, text=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual((self.root / 'enroll.log').read_text().splitlines(), ['enrolled'])
+        finally:
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.communicate()
 
     def tearDown(self):
         for path in self.root.glob('*.service.pid'):

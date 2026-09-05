@@ -20,7 +20,7 @@ extract_heredoc() {
 }
 
 updater="${temporary_dir}/update.sh"
-extract_heredoc "\tcat >\"\$updater_temporary\" <<'KPANEL_NODE_UPDATE'" "KPANEL_NODE_UPDATE" "${updater}"
+extract_heredoc "\tcat >>\"\$updater_temporary\" <<'KPANEL_NODE_UPDATE'" "KPANEL_NODE_UPDATE" "${updater}"
 test -s "${updater}"
 bash -n "${updater}"
 
@@ -319,6 +319,9 @@ chmod +x "${join_runtime}/install" "${join_runtime}/systemctl"
 	export KPANEL_TEST_JOIN_FAIL_ONCE="${join_runtime}/failed-once"
 	eval "${activate_body}"
 	eval "${join_body}"
+	# Lock/concurrency execution is covered by test_kpanel_light_node_update.py;
+	# this fixture tests enrollment retry and service activation only.
+	kpanel_node_lock() { :; }
 	kpanel_node_paths() {
 		KPANEL_NODE_HOME="${KPANEL_TEST_JOIN_ROOT}/home"
 		KPANEL_NODE_BINARY="${KPANEL_NODE_HOME}/kejilion-node"
@@ -359,6 +362,7 @@ MOCK_NODE
 	kpanel_node_write_units() { :; }
 	kpanel_node_cleanup_failed_join() { rm -rf -- "${KPANEL_NODE_HOME}" "${KPANEL_NODE_CONFIG_DIR}"; }
 	chown() { :; }
+	kpanel_node_paths
 	touch "${KPANEL_TEST_JOIN_ROOT}/fail-update"
 	if kpanel_node_join 'kpl1.test-token'; then
 		echo "join unexpectedly succeeded despite injected updater failure" >&2
