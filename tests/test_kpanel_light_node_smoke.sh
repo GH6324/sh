@@ -20,7 +20,7 @@ extract_heredoc() {
 }
 
 updater="${temporary_dir}/update.sh"
-extract_heredoc "\tcat >\"\$KPANEL_NODE_UPDATER\" <<'KPANEL_NODE_UPDATE'" "KPANEL_NODE_UPDATE" "${updater}"
+extract_heredoc "\tcat >\"\$updater_temporary\" <<'KPANEL_NODE_UPDATE'" "KPANEL_NODE_UPDATE" "${updater}"
 test -s "${updater}"
 bash -n "${updater}"
 
@@ -111,15 +111,16 @@ if printf '%s\n' "${activate_body}" | grep -Eq 'enable --now|is-active --quiet';
 fi
 
 grep -F 'base_url="https://github.com/kejilion/KPanel/releases/latest/download"' "${updater}" >/dev/null
-grep -F -- "--proto '=https' --tlsv1.2" "${updater}" >/dev/null
+grep -F -- "--proto '=https' --proto-redir '=https' --tlsv1.2" "${updater}" >/dev/null
 grep -F 'SHA256SUMS' "${updater}" >/dev/null
 grep -F 'sha256sum' "${updater}" >/dev/null
 grep -F "grep -Eq '^[^[:space:]]+ light-v1$'" "${updater}" >/dev/null
 grep -F 'ensure_file_service_unit' "${updater}" >/dev/null
 grep -F 'systemctl enable "$file_service"' "${updater}" >/dev/null
-version_check_line="$(grep -n 'version_output=' "${updater}" | cut -d: -f1)"
+checksum_line="$(grep -n '^expected=' "${updater}" | cut -d: -f1)"
 up_to_date_line="$(grep -n 'already up to date' "${updater}" | cut -d: -f1)"
-test -n "${version_check_line}" -a -n "${up_to_date_line}" -a "${version_check_line}" -lt "${up_to_date_line}"
+test -n "${checksum_line}" -a -n "${up_to_date_line}" -a "${checksum_line}" -lt "${up_to_date_line}"
+grep -F 'service_running_current kejilion-node.service' "${updater}" >/dev/null
 if grep -F 'light-terminal-v1' "${normalized_script}" >/dev/null; then
 	echo "lightweight node installer still names the removed terminal protocol" >&2
 	exit 1
@@ -178,8 +179,8 @@ if grep -Eq '^(ProtectSystem|ProtectHome|CapabilityBoundingSet)=' "${file_servic
 	echo "lightweight node file broker is isolated from the filesystem it must manage" >&2
 	exit 1
 fi
-printf '%s\n' "${timer_body}" | grep -Fx 'OnUnitActiveSec=24h' >/dev/null
-printf '%s\n' "${timer_body}" | grep -Fx 'RandomizedDelaySec=6h' >/dev/null
+printf '%s\n' "${timer_body}" | grep -Fx 'OnUnitInactiveSec=1h' >/dev/null
+printf '%s\n' "${timer_body}" | grep -Fx 'RandomizedDelaySec=15min' >/dev/null
 printf '%s\n' "${timer_body}" | grep -Fx 'Persistent=true' >/dev/null
 
 # Exercise the systemd-sysusers fallback used by minimal systemd hosts that do
