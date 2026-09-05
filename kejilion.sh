@@ -11073,41 +11073,86 @@ esac
 home_dir="/usr/local/lib/kejilion-node"
 binary_name="kejilion-node-linux-${arch}"
 binary_path="${home_dir}/kejilion-node"
-base_url="https://github.com/kejilion/KPanel/releases/latest/download"
+# Resolve releases at the origin: script-delivery proxies can rewrite literal
+# GitHub URLs and hide the redirects that bind the checksum to one release.
+github_host="github.com"
+base_url="https://${github_host}/kejilion/KPanel/releases/latest/download"
+legacy_lock="/run/lock/kejilion-node-update.lock"
+legacy_marker="${home_dir}/legacy-update.pid"
+legacy_lock_owned=false
+temporary_dir=""
 
-# Unlike a mkdir lock, the kernel releases this lock even after SIGKILL.
+# flock recovers after SIGKILL; the directory also excludes old mkdir updaters.
 exec 9>"${home_dir}/update.lock"
 if ! flock -n 9; then
 	echo "another KPanel lightweight node update is running" >&2
 	exit 1
 fi
-# During the one-time handoff, an old updater still holds its mkdir lock and
-# continues executing the old script. Do not race its binary/rollback writes.
-if [ -d /run/lock/kejilion-node-update.lock ] && [ ! -f "${home_dir}/legacy-update.pid" ]; then
-	echo "legacy KPanel update lock exists; finish or inspect the previous update first" >&2
-	exit 1
-fi
-if [ -f "${home_dir}/legacy-update.pid" ]; then
-	read -r legacy_pid legacy_start <"${home_dir}/legacy-update.pid"
-	if [[ "$legacy_pid" =~ ^[1-9][0-9]*$ ]] && [[ "$legacy_start" =~ ^[0-9]+$ ]] &&
-		[ "$(awk '{ sub(/^.*\) /, ""); print $20 }' "/proc/${legacy_pid}/stat" 2>/dev/null || true)" = "$legacy_start" ]; then
+cleanup() {
+	[ -z "$temporary_dir" ] || rm -rf -- "$temporary_dir"
+	[ "$legacy_lock_owned" != true ] || rmdir -- "$legacy_lock" 2>/dev/null || true
+}
+trap cleanup EXIT
+trap 'echo "KPanel lightweight node update interrupted; run the command again to retry." >&2; exit 130' INT
+trap 'exit 143' HUP TERM
+
+if [ -e "$legacy_marker" ] || [ -L "$legacy_marker" ]; then
+	if [ -L "$legacy_marker" ] || [ ! -f "$legacy_marker" ] ||
+		! read -r legacy_pid legacy_start <"$legacy_marker" ||
+		! [[ "$legacy_pid" =~ ^[1-9][0-9]*$ && "$legacy_start" =~ ^[0-9]+$ ]]; then
+		echo "KPanel legacy updater identity is invalid; inspect ${legacy_marker} first" >&2
+		exit 1
+	fi
+	if [ "$(awk '{ sub(/^.*\) /, ""); print $20 }' "/proc/${legacy_pid}/stat" 2>/dev/null || true)" = "$legacy_start" ]; then
 		echo "previous KPanel lightweight node updater is still finishing" >&2
 		exit 1
 	fi
 fi
-temporary_dir=""
-cleanup() {
-	[ -z "$temporary_dir" ] || rm -rf -- "$temporary_dir"
+legacy_updater_idle() {
+	local process argument script_file
+	[ -r /proc/self/stat ] || return 1
+	for process in /proc/[0-9]*; do
+		[ "${process##*/}" != "$$" ] || continue
+		# Bash keeps the running script open after an atomic replacement.
+		script_file="$(readlink "${process}/fd/255" 2>/dev/null || true)"
+		[ "${script_file% (deleted)}" != "${home_dir}/update.sh" ] || return 1
+		if [ ! -r "${process}/cmdline" ]; then
+			[ ! -d "$process" ] && continue
+			return 1
+		fi
+		while IFS= read -r -d '' argument; do
+			[ "$argument" != "${home_dir}/update.sh" ] || return 1
+		done <"${process}/cmdline" || return 1
+	done
 }
-trap cleanup EXIT
-trap 'exit 130' INT
-trap 'exit 143' HUP TERM
+
+if ! mkdir -- "$legacy_lock" 2>/dev/null; then
+	if [ -L "$legacy_lock" ] || [ ! -d "$legacy_lock" ] || ! legacy_updater_idle; then
+		echo "legacy KPanel update lock is still in use or cannot be verified; retry after the previous update finishes" >&2
+		exit 1
+	fi
+	# Never recursively delete an unknown lock. If an old updater wins mkdir
+	# after rmdir, leave its lock untouched and let the caller retry.
+	if ! rmdir -- "$legacy_lock" || ! mkdir -- "$legacy_lock"; then
+		echo "KPanel legacy update lock could not be recovered; inspect ${legacy_lock} first" >&2
+		exit 1
+	fi
+	echo "Recovered an inactive KPanel lightweight node update lock."
+fi
+legacy_lock_owned=true
+rm -f -- "$legacy_marker"
 temporary_dir="$(mktemp -d /tmp/kejilion-node-update.XXXXXX)"
 
-curl --proto '=https' --proto-redir '=https' --tlsv1.2 --fail --location --silent --show-error \
+curl_progress=(--silent --show-error)
+[ ! -t 2 ] || curl_progress=(--progress-bar --show-error)
+echo "Checking KPanel lightweight node release..."
+if ! curl --proto '=https' --proto-redir '=https' --tlsv1.2 --fail --location "${curl_progress[@]}" \
 	--connect-timeout 15 --max-time 60 --retry 3 --retry-delay 5 --retry-max-time 240 \
 	--max-filesize 65536 --dump-header "${temporary_dir}/headers" \
-	-o "${temporary_dir}/SHA256SUMS" "${base_url}/SHA256SUMS"
+	-o "${temporary_dir}/SHA256SUMS" "${base_url}/SHA256SUMS"; then
+	echo "KPanel release check failed; check access to github.com and retry." >&2
+	exit 1
+fi
 expected="$(awk -v name="$binary_name" '$2 == name { print $1 }' "${temporary_dir}/SHA256SUMS")"
 printf '%s' "$expected" | grep -Eq '^[0-9a-f]{64}$' || {
 	echo "release checksum is unavailable" >&2
@@ -11116,7 +11161,7 @@ printf '%s' "$expected" | grep -Eq '^[0-9a-f]{64}$' || {
 # The first redirect binds the manifest to a release; the following CDN redirect
 # must never be used as a base URL or mixed with a later value of latest.
 release_url="$(awk 'tolower($1) == "location:" { sub(/\r$/, "", $2); print $2 }' "${temporary_dir}/headers" |
-	grep -E '^https://github.com/kejilion/KPanel/releases/download/v[0-9]+\.[0-9]+\.[0-9]+/SHA256SUMS$' | tail -n 1)"
+	grep -E '^https://github[.]com/kejilion/KPanel/releases/download/v[0-9]+\.[0-9]+\.[0-9]+/SHA256SUMS$' | tail -n 1 || true)"
 [ -n "$release_url" ] || { echo "release manifest redirect is invalid" >&2; exit 1; }
 release_base="${release_url%/SHA256SUMS}"
 
@@ -11258,10 +11303,14 @@ if [ -f "$binary_path" ] && [ "$(sha256sum "$binary_path" | awk '{print $1}')" =
 	exit 0
 fi
 
-curl --proto '=https' --proto-redir '=https' --tlsv1.2 --fail --location --silent --show-error \
+echo "Downloading KPanel lightweight node..."
+if ! curl --proto '=https' --proto-redir '=https' --tlsv1.2 --fail --location "${curl_progress[@]}" \
 	--connect-timeout 15 --max-time 180 --retry 3 --retry-delay 5 --retry-max-time 600 \
 	--max-filesize 134217728 \
-	-o "${temporary_dir}/${binary_name}" "${release_base}/${binary_name}"
+	-o "${temporary_dir}/${binary_name}" "${release_base}/${binary_name}"; then
+	echo "KPanel node download failed; check access to GitHub release downloads and retry." >&2
+	exit 1
+fi
 actual="$(sha256sum "${temporary_dir}/${binary_name}" | awk '{print $1}')"
 [ "$actual" = "$expected" ] || {
 	echo "release checksum verification failed" >&2
@@ -11572,7 +11621,9 @@ kpanel_node_join() {
 	kpanel_node_ensure_account || return 1
 	"$KPANEL_NODE_INSTALL_BIN" -d -o root -g kejilion-node -m 0750 "$KPANEL_NODE_CONFIG_DIR" || return 1
 	if ! kpanel_node_write_updater || ! "$KPANEL_NODE_UPDATER" install; then
-		[ "$resume_enrollment" = "true" ] || kpanel_node_cleanup_failed_join
+		# Preserve updater locks and migration identity; another updater may own
+		# them. The transactional updater already preserves the previous binary.
+		echo "KPanel 轻量节点安装未完成；请根据上面的提示处理后，再次执行接入命令。" >&2
 		return 1
 	fi
 	if [ "$resume_enrollment" != "true" ]; then

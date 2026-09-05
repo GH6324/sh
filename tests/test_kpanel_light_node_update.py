@@ -13,6 +13,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 SOURCE = Path(os.environ.get('SCRIPT_PATH', Path(__file__).resolve().parents[1] / 'kejilion.sh')).read_text()
@@ -28,11 +29,18 @@ with (root/'downloads').open('a') as f: f.write(args[-1]+'\n')
 assert '--retry' in args and '--retry-max-time' in args and '--max-filesize' in args
 assert args[args.index('--proto-redir')+1]=='=https'
 if (root/'network-down').exists(): sys.exit(7)
+if (root/'pause-download').exists():
+ import time
+ (root/'download-waiting').touch()
+ while (root/'pause-download').exists(): time.sleep(0.05)
 out=pathlib.Path(args[args.index('-o')+1])
 if args[-1].endswith('/SHA256SUMS'):
+ assert args[-1]=='https://github.com/kejilion/KPanel/releases/latest/download/SHA256SUMS'
  shutil.copyfile(root/'SHA256SUMS',out)
- pathlib.Path(args[args.index('--dump-header')+1]).write_text('HTTP/2 302\r\nLocation: https://github.com/kejilion/KPanel/releases/download/v9.9.9/SHA256SUMS\r\n\r\nHTTP/2 302\r\nlocation: https://release-assets.githubusercontent.com/test\r\n\r\n')
+ headers=(root/'response-headers').read_text() if (root/'response-headers').exists() else 'HTTP/2 302\r\nLocation: https://github.com/kejilion/KPanel/releases/download/v9.9.9/SHA256SUMS\r\n\r\nHTTP/2 302\r\nlocation: https://release-assets.githubusercontent.com/test\r\n\r\n'
+ pathlib.Path(args[args.index('--dump-header')+1]).write_text(headers)
 else:
+ if (root/'binary-network-down').exists(): sys.exit(7)
  assert args[-1]=='https://github.com/kejilion/KPanel/releases/download/v9.9.9/kejilion-node-linux-amd64'
  shutil.copyfile(root/('bad' if (root/'bad-download').exists() else 'release'),out)
 '''
@@ -109,8 +117,8 @@ class NodeUpdater(unittest.TestCase):
             except ProcessLookupError: pass
         self.temp.cleanup()
 
-    def run_update(self, success=True):
-        result = subprocess.run(['/bin/bash', str(self.root / 'update.sh'), 'update'], cwd=self.root, env=self.env, text=True, capture_output=True, timeout=20)
+    def run_update(self, success=True, mode='update'):
+        result = subprocess.run(['/bin/bash', str(self.root / 'update.sh'), mode], cwd=self.root, env=self.env, text=True, capture_output=True, timeout=20)
         self.assertEqual(result.returncode == 0, success, result.stdout + result.stderr)
         return result
 
@@ -206,12 +214,8 @@ class NodeUpdater(unittest.TestCase):
         self.run_update()
 
     def test_sigkill_releases_lock_and_legacy_handoff_blocks_only_live_process(self):
-        (self.root / 'legacy.lock').mkdir()
-        self.assertIn('legacy KPanel update lock', self.run_update(False).stderr)
-        (self.root / 'legacy.lock').rmdir()
         process = subprocess.Popen(['flock', str(self.root / 'home/update.lock'), '/bin/sleep', '60'], start_new_session=True)
         try:
-            import time
             time.sleep(0.1)
             self.run_update(False)
         finally:
@@ -223,6 +227,122 @@ class NodeUpdater(unittest.TestCase):
         self.assertIn('still finishing', self.run_update(False).stderr)
         # A reused PID with a different start time cannot block future checks.
         marker.write_text('%d 0\n' % os.getpid())
+        self.run_update()
+        self.assertFalse(marker.exists())
+
+    def test_orphaned_empty_lock_recovers_on_install_and_network_failure_releases_it(self):
+        lock = self.root / 'legacy.lock'
+        lock.mkdir()
+        (self.root / 'network-down').touch()
+        result = self.run_update(False, mode='install')
+        self.assertIn('Recovered an inactive', result.stdout)
+        self.assertIn('release check failed', result.stderr)
+        self.assertFalse(lock.exists())
+        (self.root / 'network-down').unlink()
+        self.run_update(mode='install')
+        self.assertFalse(lock.exists())
+
+    def test_live_legacy_script_without_marker_is_preserved_even_after_replacement(self):
+        legacy = self.root / 'home/update.sh'
+        legacy.write_text('#!/bin/bash\nmkdir "$NODE_TEST_ROOT/legacy.lock" || exit 1\ntouch "$NODE_TEST_ROOT/legacy-ready"\nwhile :; do sleep 30; done\n')
+        process = subprocess.Popen(['/bin/bash', 'update.sh'], cwd=legacy.parent, env=self.env, start_new_session=True)
+        try:
+            for _ in range(100):
+                if (self.root / 'legacy-ready').exists(): break
+                time.sleep(0.02)
+            self.assertTrue((self.root / 'legacy-ready').exists())
+            replacement = self.root / 'home/new-updater'
+            replacement.write_text('#!/bin/bash\nexit 0\n')
+            replacement.replace(legacy)
+            self.assertIn('legacy KPanel update lock is still in use', self.run_update(False).stderr)
+            self.assertTrue((self.root / 'legacy.lock').is_dir())
+            self.assertFalse((self.root / 'downloads').exists())
+        finally:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+        self.run_update()
+        self.assertFalse((self.root / 'legacy.lock').exists())
+
+    def test_unknown_lock_contents_and_symlinks_are_never_removed(self):
+        lock = self.root / 'legacy.lock'
+        lock.mkdir()
+        (lock / 'unknown').write_text('preserve')
+        self.run_update(False)
+        self.assertEqual((lock / 'unknown').read_text(), 'preserve')
+        (lock / 'unknown').unlink()
+        lock.rmdir()
+        target = self.root / 'external-lock'
+        target.mkdir()
+        lock.symlink_to(target, target_is_directory=True)
+        self.run_update(False)
+        self.assertTrue(lock.is_symlink())
+        self.assertTrue(target.is_dir())
+
+    def test_invalid_legacy_identity_has_an_explicit_error(self):
+        marker = self.root / 'home/legacy-update.pid'
+        marker.write_text('')
+        self.assertIn('legacy updater identity is invalid', self.run_update(False).stderr)
+        self.assertTrue(marker.exists())
+
+    def test_update_bridges_legacy_lock_and_recovers_after_sigkill(self):
+        (self.root / 'pause-download').touch()
+        process = subprocess.Popen(['/bin/bash', str(self.root / 'update.sh'), 'install'], cwd=self.root, env=self.env,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        try:
+            for _ in range(100):
+                if (self.root / 'download-waiting').exists(): break
+                time.sleep(0.02)
+            self.assertTrue((self.root / 'download-waiting').exists())
+            self.assertTrue((self.root / 'legacy.lock').is_dir())
+            self.assertNotEqual(subprocess.run(['mkdir', str(self.root / 'legacy.lock')], capture_output=True).returncode, 0)
+            self.assertIn('another KPanel', self.run_update(False).stderr)
+        finally:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+        (self.root / 'pause-download').unlink()
+        self.run_update(mode='install')
+        self.assertFalse((self.root / 'legacy.lock').exists())
+
+    def test_missing_or_untrusted_release_redirect_fails_visibly_before_binary_download(self):
+        before = self.binary.read_bytes()
+        for headers in ('HTTP/2 200\n', 'Location: https://githubXcom/kejilion/KPanel/releases/download/v9.9.9/SHA256SUMS\n',
+                        'Location: https://github.com/other/project/releases/download/v9.9.9/SHA256SUMS\n'):
+            with self.subTest(headers=headers):
+                (self.root / 'response-headers').write_text(headers)
+                result = self.run_update(False)
+                self.assertIn('release manifest redirect is invalid', result.stderr)
+                self.assertEqual(self.binary.read_bytes(), before)
+                self.assertFalse((self.root / 'legacy.lock').exists())
+        self.assertTrue(all(url.endswith('/SHA256SUMS') for url in (self.root / 'downloads').read_text().splitlines()))
+
+    def test_interrupt_reports_retry_and_releases_compatibility_lock(self):
+        (self.root / 'pause-download').touch()
+        process = subprocess.Popen(['/bin/bash', str(self.root / 'update.sh'), 'install'], cwd=self.root, env=self.env,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+        try:
+            for _ in range(100):
+                if (self.root / 'download-waiting').exists(): break
+                time.sleep(0.02)
+            self.assertTrue((self.root / 'download-waiting').exists())
+            os.killpg(process.pid, signal.SIGINT)
+            stdout, stderr = process.communicate(timeout=5)
+            self.assertEqual(process.returncode, 130, stdout + stderr)
+            self.assertIn('interrupted; run the command again', stderr)
+            self.assertFalse((self.root / 'legacy.lock').exists())
+        finally:
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.communicate()
+
+    def test_delivery_proxy_rewriting_keeps_release_origin_and_download_errors_are_visible(self):
+        updater = self.root / 'update.sh'
+        updater.write_text(updater.read_text().replace('https://github.com/', 'https://gh.kejilion.pro/https://github.com/'))
+        (self.root / 'binary-network-down').touch()
+        result = self.run_update(False)
+        self.assertIn('Checking KPanel', result.stdout)
+        self.assertIn('Downloading KPanel', result.stdout)
+        self.assertIn('node download failed', result.stderr)
+        (self.root / 'binary-network-down').unlink()
         self.run_update()
 
     def test_unsafe_config_is_rejected_without_widening_permissions(self):

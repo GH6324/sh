@@ -110,7 +110,7 @@ if printf '%s\n' "${activate_body}" | grep -Eq 'enable --now|is-active --quiet';
 	exit 1
 fi
 
-grep -F 'base_url="https://github.com/kejilion/KPanel/releases/latest/download"' "${updater}" >/dev/null
+grep -F 'base_url="https://${github_host}/kejilion/KPanel/releases/latest/download"' "${updater}" >/dev/null
 grep -F -- "--proto '=https' --proto-redir '=https' --tlsv1.2" "${updater}" >/dev/null
 grep -F 'SHA256SUMS' "${updater}" >/dev/null
 grep -F 'sha256sum' "${updater}" >/dev/null
@@ -337,6 +337,7 @@ chmod +x "${join_runtime}/install" "${join_runtime}/systemctl"
 		mkdir -p "${KPANEL_NODE_HOME}"
 		cat >"${KPANEL_NODE_UPDATER}" <<'MOCK_UPDATER'
 #!/bin/bash
+if [ -f "${KPANEL_TEST_JOIN_ROOT}/fail-update" ]; then exit 1; fi
 exit 0
 MOCK_UPDATER
 		cat >"${KPANEL_NODE_BINARY}" <<'MOCK_NODE'
@@ -358,6 +359,14 @@ MOCK_NODE
 	kpanel_node_write_units() { :; }
 	kpanel_node_cleanup_failed_join() { rm -rf -- "${KPANEL_NODE_HOME}" "${KPANEL_NODE_CONFIG_DIR}"; }
 	chown() { :; }
+	touch "${KPANEL_TEST_JOIN_ROOT}/fail-update"
+	if kpanel_node_join 'kpl1.test-token'; then
+		echo "join unexpectedly succeeded despite injected updater failure" >&2
+		exit 1
+	fi
+	test -x "${KPANEL_NODE_UPDATER}"
+	test ! -f "${KPANEL_NODE_CONFIG}"
+	rm "${KPANEL_TEST_JOIN_ROOT}/fail-update"
 	if kpanel_node_join 'kpl1.test-token'; then
 		echo "first join unexpectedly succeeded despite injected activation failure" >&2
 		exit 1
