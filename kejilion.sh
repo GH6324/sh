@@ -11638,7 +11638,7 @@ kpanel_node_activate() {
 
 kpanel_node_join() {
 	(
-	local token="${1:-}" node_name resume_enrollment=false
+	local token="${1:-}" node_name resume_enrollment=false update_mode=install
 	kpanel_node_paths
 	kpanel_node_preflight || return 1
 	case "$token" in
@@ -11653,6 +11653,7 @@ kpanel_node_join() {
 	if [ -e "$KPANEL_NODE_CONFIG" ]; then
 		if [ -f "$KPANEL_NODE_CONFIG" ] && [ ! -L "$KPANEL_NODE_CONFIG" ] && [ -x "$KPANEL_NODE_BINARY" ]; then
 			resume_enrollment=true
+			update_mode=update
 			echo "检测到已完成的节点授权，继续启用本机服务。"
 		else
 			echo "本机存在不完整的 KPanel 节点配置；请先执行 k kpanel node uninstall。" >&2
@@ -11661,7 +11662,7 @@ kpanel_node_join() {
 	fi
 	kpanel_node_ensure_account || return 1
 	"$KPANEL_NODE_INSTALL_BIN" -d -o root -g kejilion-node -m 0750 "$KPANEL_NODE_CONFIG_DIR" || return 1
-	if ! kpanel_node_write_updater || ! "$KPANEL_NODE_UPDATER" install; then
+	if ! kpanel_node_write_updater || ! "$KPANEL_NODE_UPDATER" "$update_mode"; then
 		# Preserve updater locks and migration identity; another updater may own
 		# them. The transactional updater already preserves the previous binary.
 		echo "KPanel 轻量节点安装未完成；请根据上面的提示处理后，再次执行接入命令。" >&2

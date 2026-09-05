@@ -341,6 +341,7 @@ chmod +x "${join_runtime}/install" "${join_runtime}/systemctl"
 		cat >"${KPANEL_NODE_UPDATER}" <<'MOCK_UPDATER'
 #!/bin/bash
 if [ -f "${KPANEL_TEST_JOIN_ROOT}/fail-update" ]; then exit 1; fi
+printf '%s\n' "$1" >>"${KPANEL_TEST_JOIN_ROOT}/updater-modes.log"
 exit 0
 MOCK_UPDATER
 		cat >"${KPANEL_NODE_BINARY}" <<'MOCK_NODE'
@@ -378,6 +379,8 @@ MOCK_NODE
 	test -f "${KPANEL_NODE_CONFIG}"
 	kpanel_node_join 'kpl1.test-token'
 	test "$(wc -l <"${KPANEL_TEST_JOIN_ROOT}/enroll.log")" -eq 1
+	test "$(sed -n '1p' "${KPANEL_TEST_JOIN_ROOT}/updater-modes.log")" = install
+	test "$(sed -n '2p' "${KPANEL_TEST_JOIN_ROOT}/updater-modes.log")" = update
 )
 
 echo "KPanel lightweight-node installer smoke checks passed."
